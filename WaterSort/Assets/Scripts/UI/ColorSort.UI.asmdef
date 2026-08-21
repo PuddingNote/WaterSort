@@ -1,0 +1,20 @@
+{
+    "name": "ColorSort.UI",
+    "rootNamespace": "ColorSort.UI",
+    "references": [
+        "ColorSort.Core",
+        "ColorSort.Solver",
+        "ColorSort.Managers",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

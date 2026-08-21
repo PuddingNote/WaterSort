@@ -1,0 +1,16 @@
+{
+    "name": "ColorSort.Solver",
+    "rootNamespace": "ColorSort.Solver",
+    "references": [
+        "ColorSort.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}
