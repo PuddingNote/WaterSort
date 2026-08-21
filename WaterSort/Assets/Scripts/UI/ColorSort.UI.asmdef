@@ -6,7 +6,8 @@
         "ColorSort.Solver",
         "ColorSort.Managers",
         "Unity.TextMeshPro",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
