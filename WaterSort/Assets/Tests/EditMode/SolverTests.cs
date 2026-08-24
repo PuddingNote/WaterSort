@@ -15,7 +15,6 @@ namespace ColorSort.Tests
                 ColorCount = 4,
                 SlotCount = 5,
                 EmptyContainerCount = 2,
-                ShuffleDepth = 30,
                 Random = new Random(1)
             });
 
@@ -39,8 +38,7 @@ namespace ColorSort.Tests
                 {
                     ColorCount = 3,
                     SlotCount = 4,
-                    EmptyContainerCount = 1,
-                    ShuffleDepth = 15,
+                    EmptyContainerCount = 1, // 안 풀리기 쉬운 조합 — 생성기의 여유 막대 자동 증가 안전망을 같이 검증
                     Random = new Random(seed)
                 });
 
@@ -51,26 +49,24 @@ namespace ColorSort.Tests
         }
 
         [Test]
-        public void RoundGenerator_최고난도_구간에서도_짧은_시간안에_풀리는_라운드를_만든다()
+        public void RoundGenerator_최고난도_구간에서도_실제로_섞인_라운드를_만든다()
         {
-            // 기획서 6.5의 "101+" 최고난도 구간 근처(9색×9칸). 예전엔 이 조합에서
-            // BFS 검증이 못 찾아 강도를 계속 낮추다 결국 완성 상태(=난이도 0)로
-            // 저하됐었다 — 휴리스틱 검증으로 바뀐 뒤에도 여전히 "진짜 섞인" 라운드가
-            // 나오는지 확인한다.
+            // WaterSort 실제 최고난도 근처(색 10종·슬롯 8칸). 완전 무작위 배분으로
+            // 바꾼 뒤에도 매번 확실히 풀리는 보드가 나오는지, 그리고 이미 클리어된
+            // 상태로 안전망(완성 상태 폴백)까지 떨어지지 않는지 확인한다.
             var board = RoundGenerator.Generate(new RoundGenerator.Parameters
             {
-                ColorCount = 9,
-                SlotCount = 9,
+                ColorCount = 10,
+                SlotCount = 8,
                 EmptyContainerCount = 2,
-                ShuffleDepth = 300,
                 Random = new Random(42)
             });
 
-            Assert.IsFalse(ClearChecker.IsCleared(board), "강도 저하로 완성 상태까지 후퇴하면 안 됨");
+            Assert.IsFalse(ClearChecker.IsCleared(board), "완성 상태까지 후퇴하면 안 됨");
 
             var result = HintSolver.FindSolutionHeuristic(board);
             Assert.IsTrue(result.Found);
-            Assert.Greater(result.Moves.Count, 0);
+            Assert.Greater(result.Moves.Count, 30, "최고난도인데 최단 수가 너무 적음");
         }
 
         [Test]
@@ -95,17 +91,6 @@ namespace ColorSort.Tests
             Assert.AreEqual(1, result.Moves.Count);
             Assert.AreEqual(0, result.Moves[0].FromIndex);
             Assert.AreEqual(1, result.Moves[0].ToIndex);
-        }
-
-        [Test]
-        public void DifficultyScorer_Score_산식대로_계산()
-        {
-            float score = DifficultyScorer.Score(
-                slotCount: 6, colorCount: 5, colorSpread: 2f, shuffleDepth: 10,
-                emptyContainerCount: 2, containerCount: 7);
-
-            float expected = 6 * 3f + 5 * 4f + 2f * 5f + 10 * 1f - 2 * 8f - 7 * 1f;
-            Assert.AreEqual(expected, score, 0.0001f);
         }
 
         [Test]

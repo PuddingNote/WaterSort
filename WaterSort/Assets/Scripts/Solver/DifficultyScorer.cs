@@ -4,36 +4,17 @@ using ColorSort.Core;
 namespace ColorSort.Solver
 {
     /// <summary>
-    /// GameDesign.md의 DifficultyScore 가중합 산식. 가중치는 아직 플레이테스트로
-    /// 실측/튜닝되지 않은 참고안 그대로다 — 값을 바꿀 땐 이 상수만 고치면 되고,
-    /// 실측은 헤드리스 자기대전(Solver로 다수 라운드 생성 후 클리어 수 분포 측정)으로 한다.
+    /// 생성된 보드의 색 분포를 재는 보조 통계. 예전엔 여기에 여러 파라미터를
+    /// 가중합해 "난이도 점수"를 추정하는 `Score()`도 있었는데, 실제 난이도를
+    /// 결정하는 건 그 가중치 짐작이 아니라 "실제로 몇 수만에 풀리는가"였다
+    /// (RoundGenerator를 완전 무작위 배분으로 바꾼 뒤 확인) — 그래서 이제
+    /// 난이도는 `RoundBuilder.Result.SolutionMoveCount`(실측 최단 근사 수)로
+    /// 직접 보고하고, 이 클래스는 부가 통계(색 분포)만 남긴다.
     /// </summary>
     public static class DifficultyScorer
     {
-        public const float SlotCountWeight = 3f;
-        public const float ColorCountWeight = 4f;
-        public const float ColorSpreadWeight = 5f;
-        public const float ShuffleDepthWeight = 1f;
-        public const float EmptyContainerWeight = -8f;
-        public const float ContainerCountWeight = -1f;
-
-        public static float Score(
-            int slotCount,
-            int colorCount,
-            float colorSpread,
-            int shuffleDepth,
-            int emptyContainerCount,
-            int containerCount)
-        {
-            return slotCount * SlotCountWeight
-                 + colorCount * ColorCountWeight
-                 + colorSpread * ColorSpreadWeight
-                 + shuffleDepth * ShuffleDepthWeight
-                 + emptyContainerCount * EmptyContainerWeight
-                 + containerCount * ContainerCountWeight;
-        }
-
-        /// <summary>실제로 생성된 Board에서 colorSpread(색상당 분포 막대 수 평균)를 측정한다.</summary>
+        /// <summary>생성된 Board에서 colorSpread(색상당 분포 막대 수 평균)를 측정한다.
+        /// 값이 클수록 같은 색이 여러 병에 흩어져 있다는 뜻.</summary>
         public static float MeasureColorSpread(Board board)
         {
             var containersPerColor = new Dictionary<int, HashSet<int>>();
