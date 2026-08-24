@@ -1,17 +1,17 @@
 using System;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
 namespace ColorSort.UI
 {
     /// <summary>
-    /// 타이틀 화면. 제목은 넉넉한 간격을 두고 위쪽에, 부제+버튼은 서로 가깝게
-    /// 묶어 그 아래 배치한다(다른 게임 타이틀 화면 레퍼런스 반영). 설정 버튼만
-    /// 좌상단 코너에 별도로 둔다(GameDesign.md 4.1). 버튼 클릭은 콜백으로만
-    /// 알리고 씬 전환은 이 클래스 밖(부트스트랩)에서 한다.
+    /// 타이틀 화면. 레이아웃 규격은 Desktop의 캐주얼_게임_UI_레이아웃_컨벤션.md 2장 "타이틀 화면 표준"을
+    /// 그대로 따른다(제목/부제/버튼 절대 위치·크기 고정값). 설정 버튼만 좌상단
+    /// 코너에 별도로 두고, 왼쪽 큰 버튼은 이 게임에서는 종료(QUIT)로 쓴다(설정이
+    /// 이미 코너에 있으므로). 모든 표시 텍스트는 영어로 통일한다(사용자 확정 정책).
     /// </summary>
-    public static class TitleScreen
+    public sealed class TitleScreen : MonoBehaviour
     {
         public sealed class Callbacks
         {
@@ -22,99 +22,138 @@ namespace ColorSort.UI
             public Action OnQuit;
         }
 
-        public static RectTransform Build(Transform parent, string title, string subtitle, Callbacks callbacks)
+        private Transform _canvasRoot;
+        private Callbacks _callbacks;
+        private RectTransform _activeDialog;
+#if UNITY_EDITOR
+        private TMP_InputField _debugRoundField;
+#endif
+
+        public static TitleScreen Build(Transform canvasRoot, string title, string subtitle, Callbacks callbacks)
         {
-            var root = UiFactory.CreatePanel(parent, "TitleScreen", UiTheme.BackgroundTop);
-            UiFactory.Stretch(root);
+            var go = new GameObject("TitleScreen", typeof(RectTransform));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(canvasRoot, false);
+            UiFactory.Stretch(rect);
 
-            BuildSettingsButton(root, callbacks);
-            BuildTitleCluster(root, title, subtitle, callbacks);
-
-            return root;
+            var screen = go.AddComponent<TitleScreen>();
+            screen.Initialize(rect, canvasRoot, title, subtitle, callbacks);
+            return screen;
         }
 
-        private static void BuildSettingsButton(RectTransform root, Callbacks callbacks)
+        private void Initialize(RectTransform root, Transform canvasRoot, string title, string subtitle, Callbacks callbacks)
+        {
+            _canvasRoot = canvasRoot;
+            _callbacks = callbacks;
+
+            var background = UiFactory.CreatePanel(root, "Background", UiTheme.BackgroundTop);
+            UiFactory.Stretch(background);
+
+            BuildSettingsButton(root);
+            BuildTitle(root, title);
+            BuildSubtitle(root, subtitle);
+            BuildButtons(root);
+        }
+
+        private void Update()
+        {
+            // 안드로이드 뒤로가기 = Input System에서는 Escape 키로 들어온다.
+            // 다이얼로그가 이미 열려있으면 "닫기"로, 없으면 "종료 확인 열기"로 —
+            // 두 화면(다이얼로그/이 화면)이 각자 따로 Escape를 읽으면 같은 프레임에
+            // 닫혔다가 바로 다시 열리는 경합이 생겨서, 여기 한 곳에서만 처리한다.
+            if (Keyboard.current == null || !Keyboard.current.escapeKey.wasPressedThisFrame) return;
+
+            if (_activeDialog != null)
+            {
+                var dialog = _activeDialog;
+                _activeDialog = null;
+                Destroy(dialog.gameObject);
+                return;
+            }
+
+            RequestQuit();
+        }
+
+        private void BuildSettingsButton(RectTransform root)
         {
             // TODO(sprite): icon_settings_gear — 톱니바퀴 아이콘 준비되면 icon 인자로 교체.
             var button = UiFactory.CreateIconButton(root, icon: null, UiTheme.IconButtonSize, UiTheme.PanelColor,
-                () => callbacks?.OnSettings?.Invoke(), fallbackText: "설정");
+                () => _callbacks?.OnSettings?.Invoke(), fallbackText: "SETTINGS");
             var rect = (RectTransform)button.transform;
             rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
             rect.anchoredPosition = new Vector2(UiTheme.ScreenPadding, -UiTheme.ScreenPadding);
         }
 
-        /// <summary>
-        /// 제목 / (부제+버튼) 두 덩어리로 나눠 쌓는다 — 제목과 나머지 사이는
-        /// 넓게(56px), 부제와 버튼 사이는 좁게(20px) 붙여야 레퍼런스처럼 "제목만
-        /// 살짝 떨어져 있고 부제+버튼은 한 세트로 붙어있는" 느낌이 난다. 각 덩어리
-        /// 높이는 ContentSizeFitter가 실제 내용에 맞춰 자동 계산한다.
-        /// </summary>
-        private static void BuildTitleCluster(RectTransform root, string title, string subtitle, Callbacks callbacks)
+        private void BuildTitle(RectTransform root, string title)
         {
-            var cluster = UiFactory.CreatePanel(root, "TitleCluster", Color.clear);
-            cluster.anchorMin = cluster.anchorMax = new Vector2(0.5f, 1f);
-            cluster.pivot = new Vector2(0.5f, 1f);
-            cluster.sizeDelta = new Vector2(860f, 0f); // 높이 0 = ContentSizeFitter가 채움
-            cluster.anchoredPosition = new Vector2(0f, -560f); // 화면 상단에서 ~29% 지점부터 시작
-
-            var outerLayout = UiFactory.AddVerticalLayout(cluster, spacing: 56f, forceExpandWidth: true, forceExpandHeight: false);
-            outerLayout.childAlignment = TextAnchor.UpperCenter;
-            AddAutoHeight(cluster);
-
             // TODO(sprite): logo_title — 글자 대신 로고 이미지로 교체할 수도 있음.
-            UiFactory.CreateText(cluster, title, UiTheme.FontSizeTitle, UiTheme.TextPrimary);
+            var titleText = UiFactory.CreateText(root, title, UiTheme.FontSizeTitle, UiTheme.TextPrimary);
+            AnchorTopCenter(titleText.transform, x: 0f, y: -600f, width: 1000f, height: 180f);
+        }
 
-            var subGroup = UiFactory.CreatePanel(cluster, "SubtitleAndButtons", Color.clear);
-            var subLayout = UiFactory.AddVerticalLayout(subGroup, spacing: 20f, forceExpandWidth: true, forceExpandHeight: false);
-            subLayout.childAlignment = TextAnchor.UpperCenter;
-            AddAutoHeight(subGroup);
+        private void BuildSubtitle(RectTransform root, string subtitle)
+        {
+            var subtitleText = UiFactory.CreateText(root, subtitle, UiTheme.FontSizeSubtitle, UiTheme.TextSecondary);
+            AnchorTopCenter(subtitleText.transform, x: 0f, y: -1100f, width: 900f, height: 70f);
+        }
 
-            UiFactory.CreateText(subGroup, subtitle, UiTheme.FontSizeSubtitle, UiTheme.TextSecondary);
+        private void BuildButtons(RectTransform root)
+        {
+            // TODO(sprite): bg_button_rounded — 준비되면 UiSkin.ButtonBackground에 연결.
+            var quitButton = UiFactory.CreateButton(root, "QUIT", UiTheme.ButtonWidthLarge, UiTheme.ButtonHeightLarge,
+                UiTheme.SecondaryColor, RequestQuit);
+            AnchorTopCenter(quitButton.transform, x: -220f, y: -1200f, width: UiTheme.ButtonWidthLarge, height: UiTheme.ButtonHeightLarge);
 
-            var buttonsRow = UiFactory.CreatePanel(subGroup, "ButtonsRow", Color.clear);
-            UiFactory.FixedSize(buttonsRow.gameObject, -1f, UiTheme.ButtonHeightLarge); // 높이만 고정, 폭은 부모 폭에 맞춰 늘어나도 됨(안쪽 정렬로 가운데 모임)
-            UiFactory.AddHorizontalLayout(buttonsRow, spacing: UiTheme.PanelSpacing, forceExpandWidth: false, forceExpandHeight: true);
-
-            // TODO(sprite): bg_button_rounded — 준비되면 CreateButton에 배경 스프라이트 전달.
-            UiFactory.CreateButton(buttonsRow, "종료", 220f, UiTheme.ButtonHeightLarge, UiTheme.SecondaryColor,
-                () => callbacks?.OnQuit?.Invoke());
+            var startButton = UiFactory.CreateButton(root, "START", UiTheme.ButtonWidthLarge, UiTheme.ButtonHeightLarge,
+                UiTheme.PrimaryColor, OnStartClicked);
+            AnchorTopCenter(startButton.transform, x: 220f, y: -1200f, width: UiTheme.ButtonWidthLarge, height: UiTheme.ButtonHeightLarge);
 
 #if UNITY_EDITOR
-            // 에디터에서만 보이는 테스트용 라운드 지정 입력 — 빌드에는 아예 안 들어간다.
-            var debugRoundField = BuildDebugRoundField(subGroup);
+            _debugRoundField = BuildDebugRoundField(root);
 #endif
+        }
 
-            UiFactory.CreateButton(buttonsRow, "시작", 220f, UiTheme.ButtonHeightLarge, UiTheme.PrimaryColor, () =>
-            {
-                int? overrideRoundId = null;
+        private void OnStartClicked()
+        {
+            int? overrideRoundId = null;
 #if UNITY_EDITOR
-                if (int.TryParse(debugRoundField.text, out int parsed) && parsed >= 1)
-                    overrideRoundId = parsed;
+            if (_debugRoundField != null && int.TryParse(_debugRoundField.text, out int parsed) && parsed >= 1)
+                overrideRoundId = parsed;
 #endif
-                callbacks?.OnStart?.Invoke(overrideRoundId);
-            });
+            _callbacks?.OnStart?.Invoke(overrideRoundId);
+        }
+
+        private void RequestQuit()
+        {
+            if (_activeDialog != null) return; // 이미 열려있으면 중복 생성 안 함
+            _activeDialog = ConfirmDialog.Show(_canvasRoot, "Exit the game?",
+                "BACK", () => _activeDialog = null,
+                "QUIT", () => { _activeDialog = null; _callbacks?.OnQuit?.Invoke(); });
         }
 
 #if UNITY_EDITOR
-        /// <summary>"테스트 라운드" 입력창 — 값을 넣고 시작을 누르면 그 라운드로
+        /// <summary>"테스트 라운드" 입력창 — 값을 넣고 START를 누르면 그 라운드로
         /// 바로 진입한다(비워두면 평소처럼 저장된 진행도로 시작). 에디터 전용.</summary>
-        private static TMP_InputField BuildDebugRoundField(RectTransform subGroup)
+        private static TMP_InputField BuildDebugRoundField(RectTransform root)
         {
-            var row = UiFactory.CreatePanel(subGroup, "DebugRoundRow", Color.clear);
-            UiFactory.FixedSize(row.gameObject, -1f, 64f);
+            var row = UiFactory.CreatePanel(root, "DebugRoundRow", Color.clear);
+            AnchorTopCenter(row, x: 0f, y: -1360f, width: 320f, height: 64f);
             var rowLayout = UiFactory.AddHorizontalLayout(row, spacing: 12f, forceExpandWidth: false, forceExpandHeight: true);
             rowLayout.childAlignment = TextAnchor.MiddleCenter;
 
-            UiFactory.CreateText(row, "테스트 라운드", UiTheme.FontSizeBadge, UiTheme.TextSecondary);
-            return UiFactory.CreateInputField(row, "예: 30", 140f, 56f);
+            UiFactory.CreateText(row, "Test round", UiTheme.FontSizeBadge, UiTheme.TextSecondary);
+            return UiFactory.CreateInputField(row, "e.g. 30", 140f, 56f);
         }
 #endif
 
-        private static void AddAutoHeight(RectTransform rect)
+        private static void AnchorTopCenter(Transform target, float x, float y, float width, float height)
         {
-            var fitter = rect.gameObject.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var rect = (RectTransform)target;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.sizeDelta = new Vector2(width, height);
+            rect.anchoredPosition = new Vector2(x, y);
         }
     }
 }

@@ -100,6 +100,25 @@ namespace ColorSort.UI
             return inputField;
         }
 
+        /// <summary>다이얼로그 배경 패널. 색은 항상 UiTheme.DialogBackground —
+        /// UiSkin.DialogBackground(스프라이트)가 있으면 그 모양(9-slice)에 이 색을
+        /// 틴트로 입히고, 없으면 그냥 이 색 단색 사각형이 된다(CreateButton과 같은
+        /// 방식 — 흰색으로 리셋해버리면 스프라이트를 넣는 순간 지정한 색이 무시된다,
+        /// 실제로 겪은 버그).</summary>
+        public static RectTransform CreateDialogPanel(Transform parent, string name)
+        {
+            var rect = CreatePanel(parent, name, UiTheme.DialogBackground);
+            var skinSprite = UiTheme.Skin != null ? UiTheme.Skin.DialogBackground : null;
+            if (skinSprite != null)
+            {
+                var image = rect.GetComponent<Image>();
+                image.sprite = skinSprite;
+                image.type = Image.Type.Sliced;
+                // color는 그대로 둔다(UiTheme.DialogBackground 틴트 유지).
+            }
+            return rect;
+        }
+
         public static Button CreateButton(
             Transform parent, string label, float width, float height, Color background, Action onClick)
         {
@@ -112,7 +131,15 @@ namespace ColorSort.UI
             // 폭이 0으로 무너진다(실제로 겪은 버그). 그래서 항상 명시적으로 못박아 둔다.
             FixedSize(go, width, height);
 
-            go.GetComponent<Image>().color = background;
+            var bgImage = go.GetComponent<Image>();
+            bgImage.color = background;
+            // UiSkin.ButtonBackground가 있으면 9-slice 스프라이트로, 없으면 단색 사각형.
+            var skinSprite = UiTheme.Skin != null ? UiTheme.Skin.ButtonBackground : null;
+            if (skinSprite != null)
+            {
+                bgImage.sprite = skinSprite;
+                bgImage.type = Image.Type.Sliced;
+            }
 
             var button = go.GetComponent<Button>();
             var colors = button.colors;
@@ -122,7 +149,8 @@ namespace ColorSort.UI
             button.colors = colors;
             if (onClick != null) button.onClick.AddListener(() => onClick());
 
-            var text = CreateText(rect, label, UiTheme.FontSizeButton, UiTheme.TextPrimary);
+            // 종료/시작/다이얼로그처럼 밝은 색 배경 버튼은 검은 글씨(사용자 확정).
+            var text = CreateText(rect, label, UiTheme.FontSizeButton, UiTheme.TextOnButton);
             Stretch((RectTransform)text.transform);
 
             return button;
@@ -140,7 +168,17 @@ namespace ColorSort.UI
             rect.sizeDelta = new Vector2(size, size);
             FixedSize(go, size, size); // CreateButton과 같은 이유
 
-            go.GetComponent<Image>().color = background;
+            var bgImage = go.GetComponent<Image>();
+            bgImage.color = background;
+            // UiSkin.IconButtonBackground가 있으면 9-slice 스프라이트에 background 색을
+            // 그대로 틴트로 입힌다(CreateButton/CreateDialogPanel과 같은 방식 — 스프라이트가
+            // 생겼다고 지정한 색이 무시되면 안 된다, 실제로 겪은 버그).
+            var skinSprite = UiTheme.Skin != null ? UiTheme.Skin.IconButtonBackground : null;
+            if (skinSprite != null)
+            {
+                bgImage.sprite = skinSprite;
+                bgImage.type = Image.Type.Sliced;
+            }
 
             var button = go.GetComponent<Button>();
             if (onClick != null) button.onClick.AddListener(() => onClick());

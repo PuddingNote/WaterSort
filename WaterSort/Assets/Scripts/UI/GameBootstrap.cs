@@ -36,12 +36,13 @@ namespace ColorSort.UI
             void ShowTitle()
             {
                 if (activeScreen != null) UnityEngine.Object.Destroy(activeScreen.gameObject);
-                activeScreen = TitleScreen.Build(canvas.transform, "WaterSort", "같은 색을 모아 정리하세요!", new TitleScreen.Callbacks
+                var title = TitleScreen.Build(canvas.transform, "WaterSort", "Sort the colors to clear the puzzle!", new TitleScreen.Callbacks
                 {
                     OnStart = ShowGame,
                     OnSettings = () => Debug.Log("[GameBootstrap] 설정 — 아직 화면 없음"),
                     OnQuit = QuitGame
                 });
+                activeScreen = (RectTransform)title.transform;
             }
 
             void ShowGame(int? overrideRoundId = null)

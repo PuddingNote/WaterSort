@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ColorSort.Core;
 using ColorSort.Solver;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace ColorSort.UI
@@ -27,6 +28,7 @@ namespace ColorSort.UI
 
         private PuzzleSession _session;
         private Callbacks _callbacks;
+        private Transform _canvasRoot;
         private int _roundId;
         private readonly List<BottleView> _bottleViews = new List<BottleView>();
         private RectTransform _bottleArea;
@@ -35,6 +37,7 @@ namespace ColorSort.UI
 
         private int? _selectedIndex;
         private (int from, int to)? _hintMove;
+        private RectTransform _activeDialog;
 
         private static readonly Color SelectedHighlight = new Color(0.36f, 0.79f, 0.89f, 0.9f); // UiTheme.PrimaryColor 톤
         private static readonly Color HintHighlight = new Color(1f, 0.84f, 0.2f, 0.9f); // TODO(sprite): 힌트 강조 색/연출 정식 확정 전 임시
@@ -53,6 +56,7 @@ namespace ColorSort.UI
 
         private void Initialize(RectTransform root, int roundId, PuzzleSession session, Callbacks callbacks)
         {
+            _canvasRoot = root.parent;
             _roundId = roundId;
             _session = session;
             _callbacks = callbacks;
@@ -67,11 +71,29 @@ namespace ColorSort.UI
             RebuildBottles();
         }
 
+        private void Update()
+        {
+            // 안드로이드 뒤로가기 = Input System에서는 Escape 키로 들어온다.
+            // 다이얼로그가 이미 열려있으면 "닫기"로, 없으면 "타이틀 복귀 확인 열기"로 —
+            // 한 곳에서만 처리해야 같은 프레임에 닫혔다가 바로 다시 열리는 경합이 안 생긴다.
+            if (Keyboard.current == null || !Keyboard.current.escapeKey.wasPressedThisFrame) return;
+
+            if (_activeDialog != null)
+            {
+                var dialog = _activeDialog;
+                _activeDialog = null;
+                Destroy(dialog.gameObject);
+                return;
+            }
+
+            RequestBackToTitle();
+        }
+
         private void BuildTopBar(RectTransform root)
         {
             // TODO(sprite): icon_back_arrow
             var back = UiFactory.CreateIconButton(root, null, UiTheme.IconButtonSize, UiTheme.PanelColor,
-                () => _callbacks?.OnBack?.Invoke(), fallbackText: "뒤로");
+                RequestBackToTitle, fallbackText: "BACK");
             var backRect = (RectTransform)back.transform;
             backRect.anchorMin = backRect.anchorMax = new Vector2(0f, 1f);
             backRect.pivot = new Vector2(0f, 1f);
@@ -79,18 +101,19 @@ namespace ColorSort.UI
 
             // TODO(sprite): icon_settings_gear
             var settings = UiFactory.CreateIconButton(root, null, UiTheme.IconButtonSize, UiTheme.PanelColor,
-                () => _callbacks?.OnSettings?.Invoke(), fallbackText: "설정");
+                () => _callbacks?.OnSettings?.Invoke(), fallbackText: "SETTINGS");
             var settingsRect = (RectTransform)settings.transform;
             settingsRect.anchorMin = settingsRect.anchorMax = new Vector2(1f, 1f);
             settingsRect.pivot = new Vector2(1f, 1f);
             settingsRect.anchoredPosition = new Vector2(-UiTheme.ScreenPadding, -UiTheme.ScreenPadding);
 
-            var roundLabel = UiFactory.CreateText(root, $"라운드 {_roundId}", UiTheme.FontSizeSubtitle, UiTheme.TextPrimary);
+            // 폰트 80으로 커진 만큼 상단 코너 버튼(140 높이)과 안 겹치게 박스를 넉넉히 잡음.
+            var roundLabel = UiFactory.CreateText(root, $"ROUND {_roundId}", 80f, UiTheme.TextPrimary);
             var roundRect = (RectTransform)roundLabel.transform;
             roundRect.anchorMin = roundRect.anchorMax = new Vector2(0.5f, 1f);
             roundRect.pivot = new Vector2(0.5f, 1f);
-            roundRect.sizeDelta = new Vector2(300f, 60f);
-            roundRect.anchoredPosition = new Vector2(0f, -UiTheme.ScreenPadding - 18f);
+            roundRect.sizeDelta = new Vector2(560f, 110f);
+            roundRect.anchoredPosition = new Vector2(0f, -70f);
         }
 
         private void BuildBottleArea(RectTransform root)
@@ -98,40 +121,45 @@ namespace ColorSort.UI
             _bottleArea = UiFactory.CreatePanel(root, "BottleArea", Color.clear);
             _bottleArea.anchorMin = new Vector2(0f, 0f);
             _bottleArea.anchorMax = new Vector2(1f, 1f);
-            _bottleArea.offsetMin = new Vector2(UiTheme.ScreenPadding, 260f); // 하단 바 자리 비워둠
-            _bottleArea.offsetMax = new Vector2(-UiTheme.ScreenPadding, -220f); // 상단 바 자리 비워둠
+            // 버튼이 140으로 커진 만큼, 그리고 병 사이 여백을 더 넉넉히 달라는 피드백대로
+            // 상/하단 바 자리를 더 넓게 비워둔다.
+            _bottleArea.offsetMin = new Vector2(UiTheme.ScreenPadding, 300f); // 하단 바 자리 비워둠
+            _bottleArea.offsetMax = new Vector2(-UiTheme.ScreenPadding, -280f); // 상단 바 자리 비워둠
 
             // forceExpandHeight는 일부러 false — true면 줄이 남는 공간을 억지로 채우려고
             // 늘어나면서 병까지 같이 늘어나 버린다(실제로 겪은 버그). 줄은 항상 병의
             // 실제 높이(BottleView가 못박은 고정값)만큼만 차지하고, 두 줄이 서로
             // 붙은 채로 이 영역 안에서 가운데 정렬되면 된다.
-            var rows = UiFactory.AddVerticalLayout(_bottleArea, spacing: UiTheme.PanelSpacing, forceExpandWidth: true, forceExpandHeight: false);
+            var rows = UiFactory.AddVerticalLayout(_bottleArea, spacing: UiTheme.BottleRowGap, forceExpandWidth: true, forceExpandHeight: false);
             rows.childAlignment = TextAnchor.MiddleCenter;
         }
 
         private void BuildBottomBar(RectTransform root)
         {
+            // 220 -> 310: 아이콘 버튼이 96->140으로 커진 만큼 그룹 폭도 같이 늘림(140*2+16여백).
+            const float groupWidth = 310f;
+
             var leftGroup = UiFactory.CreatePanel(root, "LeftButtons", Color.clear);
             leftGroup.anchorMin = leftGroup.anchorMax = new Vector2(0f, 0f);
             leftGroup.pivot = new Vector2(0f, 0f);
-            leftGroup.sizeDelta = new Vector2(220f, UiTheme.ButtonHeightSmall);
+            leftGroup.sizeDelta = new Vector2(groupWidth, UiTheme.ButtonHeightSmall);
             leftGroup.anchoredPosition = new Vector2(UiTheme.ScreenPadding, UiTheme.ScreenPadding);
             UiFactory.AddHorizontalLayout(leftGroup, spacing: 16f, forceExpandWidth: false, forceExpandHeight: true);
 
             // TODO(sprite): icon_undo, icon_reset — GameDesign.md 4.2 순서: 실행취소, 초기화.
-            _undoButton = UiFactory.CreateIconButton(leftGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnUndoClicked, fallbackText: "취소");
-            UiFactory.CreateIconButton(leftGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnResetClicked, fallbackText: "초기화");
+            _undoButton = UiFactory.CreateIconButton(leftGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnUndoClicked, fallbackText: "UNDO");
+            UiFactory.CreateIconButton(leftGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnResetClicked, fallbackText: "RESET");
 
             var rightGroup = UiFactory.CreatePanel(root, "RightButtons", Color.clear);
             rightGroup.anchorMin = rightGroup.anchorMax = new Vector2(1f, 0f);
             rightGroup.pivot = new Vector2(1f, 0f);
-            rightGroup.sizeDelta = new Vector2(220f, UiTheme.ButtonHeightSmall);
+            rightGroup.sizeDelta = new Vector2(groupWidth, UiTheme.ButtonHeightSmall);
             rightGroup.anchoredPosition = new Vector2(-UiTheme.ScreenPadding, UiTheme.ScreenPadding);
             UiFactory.AddHorizontalLayout(rightGroup, spacing: 16f, forceExpandWidth: false, forceExpandHeight: true);
 
             // TODO(sprite): icon_hint_bulb, icon_add_container — 순서: 힌트, 병 추가.
-            _hintButton = UiFactory.CreateIconButton(rightGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnHintClicked, fallbackText: "힌트");
-            UiFactory.CreateIconButton(rightGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "추가");
+            _hintButton = UiFactory.CreateIconButton(rightGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnHintClicked, fallbackText: "HINT");
+            UiFactory.CreateIconButton(rightGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "ADD");
         }
 
         private void RebuildBottles()
@@ -158,7 +186,7 @@ namespace ColorSort.UI
         {
             var row = UiFactory.CreatePanel(_bottleArea, $"Row_{startIndex}", Color.clear);
             // forceExpandHeight: false — 위의 rows 레이아웃과 같은 이유(병이 늘어나면 안 됨).
-            UiFactory.AddHorizontalLayout(row, spacing: 16f, forceExpandWidth: false, forceExpandHeight: false);
+            UiFactory.AddHorizontalLayout(row, spacing: UiTheme.BottleRowSpacing, forceExpandWidth: false, forceExpandHeight: false);
 
             for (int i = 0; i < count; i++)
             {
@@ -230,6 +258,14 @@ namespace ColorSort.UI
         {
             // TODO: 병 추가는 광고/재화(Managers) 연동 이후 — 정책 자체가 GameDesign.md TBD.
             Debug.Log("[GameView] 병 추가 — 아직 정책 미확정");
+        }
+
+        private void RequestBackToTitle()
+        {
+            if (_activeDialog != null) return; // 이미 열려있으면 Escape 연타로 중복 생성 안 함
+            _activeDialog = ConfirmDialog.Show(_canvasRoot, "Return to title?",
+                "BACK", () => _activeDialog = null,
+                "TITLE", () => { _activeDialog = null; _callbacks?.OnBack?.Invoke(); });
         }
 
         private void RefreshAllBottles()
