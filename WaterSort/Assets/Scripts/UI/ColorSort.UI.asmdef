@@ -7,7 +7,8 @@
         "ColorSort.Managers",
         "Unity.TextMeshPro",
         "Unity.InputSystem",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "UnityEditor"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
