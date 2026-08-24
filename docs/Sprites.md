@@ -28,15 +28,25 @@
 | `icon_sound_on` / `icon_sound_off` | 사운드 토글 | 56×56 | 실루엣 2종(on/off) | 중간(설정 화면) |
 | `icon_lock` | 잠긴 기능 표시(선택) | 40×40 | 실루엣 | 낮음 |
 
-## 2. 버튼/패널 배경 (9-slice)
+## 2. 버튼/패널 배경 (9-slice) — Inspector에서 직접 연결
+
+`bg_button_rounded`, `bg_panel_rounded`는 이제 코드를 안 건드리고 Inspector로
+바로 연결할 수 있다 — `Assets/Resources/UiSkin.asset`(없으면 새로 만들기:
+Project 창 우클릭 → Create → ColorSort → UI Skin, 반드시 이 경로에 저장)의
+`Button Background` / `Dialog Background` 필드에 끌어다 놓기만 하면 다음
+Play부터 바로 반영된다(자세한 구조는 Desktop의
+`캐주얼_게임_UI_레이아웃_컨벤션.md` 5장 참고). 비어 있으면 지금처럼 단색으로
+자동 대체되니 순서 상관없이 진행 가능.
 
 | 이름 | 용도 | 권장 크기(원본) | 형태 | 우선순위 |
 |---|---|---|---|---|
-| `bg_button_rounded` | 일반 버튼 배경(시작/종료/힌트 등 공용, 코드에서 색만 다르게 틴트) | 200×140, 모서리 반경 28px | 둥근 사각형, 9-slice | **높음** — 지금은 단색 `Image`로 대체 중 |
+| `bg_button_rounded` | 모든 버튼 공용 배경(색은 코드에서 버튼마다 다르게 틴트) → `UiSkin.ButtonBackground` | 400×120, 모서리 반경 28px | 둥근 사각형, 9-slice | **높음** |
+| `bg_dialog_rounded` | 확인 다이얼로그 배경 → `UiSkin.DialogBackground` | 820×400, 모서리 반경 32px | 둥근 사각형, 9-slice | 중간 |
 | `bg_button_icon_circle` | 아이콘 전용 원형 버튼 배경(설정 등) | 96×96 | 원형 | 중간 |
-| `bg_panel_rounded` | 팝업/패널 배경 | 600×400, 모서리 반경 32px | 둥근 사각형, 9-slice | 중간(팝업 만들 때) |
 | `bg_badge_pill` | 잔여 횟수 뱃지 배경(힌트/병추가 옆) | 48×48 | 알약/원형 | 중간 |
-| `overlay_dim` | 팝업 뒤 딤 처리 | 1080×1920 | 단색 반투명(스프라이트 없이 코드 alpha로도 가능) | 낮음 |
+
+`overlay_dim`(팝업 뒤 딤 처리)은 스프라이트 필요 없음 — `UiTheme.DimBackground`
+반투명 검정색으로 코드가 이미 완전히 처리함.
 
 ## 3. 타이틀 화면
 
