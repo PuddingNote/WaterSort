@@ -24,7 +24,7 @@ namespace ColorSort.Solver
     /// </summary>
     public static class RoundDifficultyCurve
     {
-        public const int MaxDifficultyRoundId = 100;
+        public const int MaxDifficultyRoundId = 200;
 
         /// <summary>테마마다 다른 파라미터 한도.</summary>
         public sealed class ThemeLimits
