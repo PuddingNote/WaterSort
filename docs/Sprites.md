@@ -16,13 +16,13 @@
 
 | 이름 | 용도 | 권장 크기 | 형태 | 우선순위 |
 |---|---|---|---|---|
-| `icon_settings_gear` | 설정 버튼(톱니바퀴) | 64×64 | 단색 실루엣(틴트로 색 입힘) | **높음** — 타이틀/게임 화면 둘 다 필요, 지금 자리표시자로 비어있음 |
-| `icon_back_arrow` | 뒤로가기 | 48×48 | 실루엣 | 높음 |
+| `icon_settings_gear` | 설정 버튼(톱니바퀴) | 64×64 | 단색 실루엣(틴트로 색 입힘) | **높음** — 타이틀/게임 화면 둘 다 필요. `UiSkin.Settings Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
+| `icon_back_arrow` | 뒤로가기 | 48×48 | 실루엣 | 높음 — `UiSkin.Back Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
 | `icon_close_x` | 팝업 닫기 | 48×48 | 실루엣 | 중간 |
-| `icon_undo` | 실행취소 버튼 | 64×64 | 실루엣(반시계 화살표) | **높음** — 게임 화면 핵심 버튼 |
-| `icon_reset` | 초기화 버튼 | 64×64 | 실루엣(새로고침 화살표) | **높음** |
-| `icon_hint_bulb` | 힌트 버튼 | 64×64 | 실루엣(전구) | **높음** |
-| `icon_add_container` | 막대/병 추가 버튼 | 64×64 | 실루엣(+ 또는 새 병 아이콘) | **높음** |
+| `icon_undo` | 실행취소 버튼 | 64×64 | 실루엣(반시계 화살표) | **높음** — `UiSkin.Undo Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
+| `icon_reset` | 초기화 버튼 | 64×64 | 실루엣(새로고침 화살표) | **높음** — `UiSkin.Reset Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
+| `icon_hint_bulb` | 힌트 버튼 | 64×64 | 실루엣(전구) | **높음** — `UiSkin.Hint Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
+| `icon_add_container` | 막대/병 추가 버튼 | 64×64 | 실루엣(+ 또는 새 병 아이콘) | **높음** — `UiSkin.Add Container Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
 | `icon_play_ad` | 보상형 광고 시청 버튼 표시 | 40×40 | 실루엣(▶ 또는 광고 마크) | 낮음(광고 SDK 붙일 때) |
 | `icon_coin` | 재화(코인) 표시 | 40×40 | 컬러 아이콘 | 낮음(경제 시스템 붙일 때) |
 | `icon_sound_on` / `icon_sound_off` | 사운드 토글 | 56×56 | 실루엣 2종(on/off) | 중간(설정 화면) |
@@ -33,10 +33,17 @@
 `bg_button_rounded`, `bg_panel_rounded`는 이제 코드를 안 건드리고 Inspector로
 바로 연결할 수 있다 — `Assets/Resources/UiSkin.asset`(없으면 새로 만들기:
 Project 창 우클릭 → Create → ColorSort → UI Skin, 반드시 이 경로에 저장)의
-`Button Background` / `Dialog Background` 필드에 끌어다 놓기만 하면 다음
-Play부터 바로 반영된다(자세한 구조는 Desktop의
-`캐주얼_게임_UI_레이아웃_컨벤션.md` 5장 참고). 비어 있으면 지금처럼 단색으로
-자동 대체되니 순서 상관없이 진행 가능.
+`Button Background` / `Icon Button Background`(모든 아이콘 버튼 공용 배경) /
+`Dialog Background` 필드에 끌어다 놓기만 하면 다음 Play부터 바로 반영된다
+(자세한 구조는 Desktop의 `캐주얼_게임_UI_레이아웃_컨벤션.md` 5장 참고). 비어
+있으면 지금처럼 단색으로 자동 대체되니 순서 상관없이 진행 가능.
+
+**아이콘 버튼 전경 그림**(배경 위에 얹히는 실제 그림)도 버튼별로 Inspector에서
+따로 연결 가능 — 현재 `Settings Icon`/`Back Icon`/`Undo Icon`/`Reset Icon`/
+`Hint Icon`/`Add Container Icon` 6개 필드가 전부 있다(2026-08-25, 사용자
+요청). 비워두면 지금처럼 텍스트 자리표시자(SETTINGS/BACK/UNDO/RESET/HINT/ADD)로
+자동 대체되니 그림 완성 순서와 무관하게 하나씩 채워 넣으면 됨. `icon_close_x`
+(팝업 닫기)만 아직 Inspector 필드가 없음 — 필요해지면 같은 패턴으로 추가.
 
 | 이름 | 용도 | 권장 크기(원본) | 형태 | 우선순위 |
 |---|---|---|---|---|
