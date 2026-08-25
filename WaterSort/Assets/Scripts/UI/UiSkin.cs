@@ -21,6 +21,14 @@ namespace ColorSort.UI
         [Header("아이콘 버튼 배경 (설정/뒤로/실행취소/초기화/힌트/추가 등 정사각 버튼 전부 공용)")]
         public Sprite IconButtonBackground;
 
+        [Header("아이콘 버튼 전경 그림 (버튼마다 다른 그림 — 배경 위에 얹힘)")]
+        public Sprite SettingsIcon;
+        public Sprite BackIcon;
+        public Sprite UndoIcon;
+        public Sprite ResetIcon;
+        public Sprite HintIcon;
+        public Sprite AddContainerIcon;
+
         [Header("팝업/다이얼로그 배경 (9-slice 권장)")]
         public Sprite DialogBackground;
     }

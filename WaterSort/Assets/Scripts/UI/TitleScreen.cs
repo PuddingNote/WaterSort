@@ -76,8 +76,7 @@ namespace ColorSort.UI
 
         private void BuildSettingsButton(RectTransform root)
         {
-            // TODO(sprite): icon_settings_gear — 톱니바퀴 아이콘 준비되면 icon 인자로 교체.
-            var button = UiFactory.CreateIconButton(root, icon: null, UiTheme.IconButtonSize, UiTheme.PanelColor,
+            var button = UiFactory.CreateIconButton(root, icon: UiTheme.Skin?.SettingsIcon, UiTheme.IconButtonSize, UiTheme.PanelColor,
                 () => _callbacks?.OnSettings?.Invoke(), fallbackText: "SETTINGS");
             var rect = (RectTransform)button.transform;
             rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);

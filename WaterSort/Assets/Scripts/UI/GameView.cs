@@ -91,16 +91,14 @@ namespace ColorSort.UI
 
         private void BuildTopBar(RectTransform root)
         {
-            // TODO(sprite): icon_back_arrow
-            var back = UiFactory.CreateIconButton(root, null, UiTheme.IconButtonSize, UiTheme.PanelColor,
+            var back = UiFactory.CreateIconButton(root, UiTheme.Skin?.BackIcon, UiTheme.IconButtonSize, UiTheme.PanelColor,
                 RequestBackToTitle, fallbackText: "BACK");
             var backRect = (RectTransform)back.transform;
             backRect.anchorMin = backRect.anchorMax = new Vector2(0f, 1f);
             backRect.pivot = new Vector2(0f, 1f);
             backRect.anchoredPosition = new Vector2(UiTheme.ScreenPadding, -UiTheme.ScreenPadding);
 
-            // TODO(sprite): icon_settings_gear
-            var settings = UiFactory.CreateIconButton(root, null, UiTheme.IconButtonSize, UiTheme.PanelColor,
+            var settings = UiFactory.CreateIconButton(root, UiTheme.Skin?.SettingsIcon, UiTheme.IconButtonSize, UiTheme.PanelColor,
                 () => _callbacks?.OnSettings?.Invoke(), fallbackText: "SETTINGS");
             var settingsRect = (RectTransform)settings.transform;
             settingsRect.anchorMin = settingsRect.anchorMax = new Vector2(1f, 1f);
@@ -146,9 +144,8 @@ namespace ColorSort.UI
             leftGroup.anchoredPosition = new Vector2(UiTheme.ScreenPadding, UiTheme.ScreenPadding);
             UiFactory.AddHorizontalLayout(leftGroup, spacing: 16f, forceExpandWidth: false, forceExpandHeight: true);
 
-            // TODO(sprite): icon_undo, icon_reset — GameDesign.md 4.2 순서: 실행취소, 초기화.
-            _undoButton = UiFactory.CreateIconButton(leftGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnUndoClicked, fallbackText: "UNDO");
-            UiFactory.CreateIconButton(leftGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnResetClicked, fallbackText: "RESET");
+            _undoButton = UiFactory.CreateIconButton(leftGroup, UiTheme.Skin?.UndoIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnUndoClicked, fallbackText: "UNDO");
+            UiFactory.CreateIconButton(leftGroup, UiTheme.Skin?.ResetIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnResetClicked, fallbackText: "RESET");
 
             var rightGroup = UiFactory.CreatePanel(root, "RightButtons", Color.clear);
             rightGroup.anchorMin = rightGroup.anchorMax = new Vector2(1f, 0f);
@@ -157,9 +154,8 @@ namespace ColorSort.UI
             rightGroup.anchoredPosition = new Vector2(-UiTheme.ScreenPadding, UiTheme.ScreenPadding);
             UiFactory.AddHorizontalLayout(rightGroup, spacing: 16f, forceExpandWidth: false, forceExpandHeight: true);
 
-            // TODO(sprite): icon_hint_bulb, icon_add_container — 순서: 힌트, 병 추가.
-            _hintButton = UiFactory.CreateIconButton(rightGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnHintClicked, fallbackText: "HINT");
-            UiFactory.CreateIconButton(rightGroup, null, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "ADD");
+            _hintButton = UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.HintIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnHintClicked, fallbackText: "HINT");
+            UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.AddContainerIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "ADD");
         }
 
         private void RebuildBottles()

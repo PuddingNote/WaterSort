@@ -12,5 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 25a6b1d6e59f0ba49801509695540169, type: 3}
   m_Name: UiSkin
   m_EditorClassIdentifier: ColorSort.UI::ColorSort.UI.UiSkin
-  ButtonBackground: {fileID: 0}
-  DialogBackground: {fileID: 0}
+  ButtonBackground: {fileID: 2007210781, guid: dd2a28d3dad02d640924bfe281cbabe0, type: 3}
+  IconButtonBackground: {fileID: 2007210781, guid: dd2a28d3dad02d640924bfe281cbabe0, type: 3}
+  SettingsIcon: {fileID: 481218501, guid: 86155785dc509fb46b8ca05bfe4a1d28, type: 3}
+  BackIcon: {fileID: 2114031508, guid: e199f90d2958f1543ae651c6df53e5b0, type: 3}
+  UndoIcon: {fileID: 0}
+  ResetIcon: {fileID: 1952998993, guid: 19e5c9e314981a349b80cb0f2db0a0e4, type: 3}
+  HintIcon: {fileID: 1606243524, guid: 697c4b51a9bd8a24f94f9b94178e93ca, type: 3}
+  AddContainerIcon: {fileID: 0}
+  DialogBackground: {fileID: 2007210781, guid: dd2a28d3dad02d640924bfe281cbabe0, type: 3}
