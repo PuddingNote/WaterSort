@@ -31,5 +31,10 @@ namespace ColorSort.UI
 
         [Header("팝업/다이얼로그 배경 (9-slice 권장)")]
         public Sprite DialogBackground;
+
+        [Header("사운드 (선택 — 비워두면 무음 처리)")]
+        [Tooltip("물 붓기 사운드. 여러 붓기가 겹치면 항상 이 클립을 재생하는 AudioSource " +
+                 "하나를 공유해서, Play()가 자동으로 이전 재생을 끊고 새로 시작한다.")]
+        public AudioClip PourSound;
     }
 }

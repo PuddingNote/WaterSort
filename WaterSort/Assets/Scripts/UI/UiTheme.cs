@@ -83,5 +83,23 @@ namespace ColorSort.UI
         public const float DialogButtonWidth = 300f;
         public const float DialogButtonHeight = 110f;
         public const float DialogTitleFontSize = 56f;
+
+        // 병 하나의 고정 크기 — BottleView와 PourAnimator(붓는 병을 그리드에서 떼어내
+        // 자유롭게 옮길 때) 둘 다 같은 값을 써야 해서 상수로 뺐다.
+        public const float BottleWidth = 120f;
+        public const float BottleHeight = 420f;
+
+        // 붓기 애니메이션 규격 — GameDesign.md TBD 확정(2026-08-25): 총 소요시간 약 1초.
+        // 실제 물병 게임처럼 붓는 병이 도착 병 위로 들려 올라가 기울여지고, 다 부으면
+        // 제자리로 돌아온다(들어올리기/복귀에 나머지 시간을 나눠 쓴다). 입력은 막지
+        // 않으므로 겹친 이동은 그냥 각자 재생되고(PourAnimator 참고), z-order/사운드만
+        // "나중 것 우선"으로 정리한다.
+        public const float PourLiftTime = 0.2f;
+        public const float PourFlowTime = 0.6f;
+        public const float PourTiltAngleDeg = 65f; // 도착 병 위에서 붓는 각도라 많이 기울어야 자연스러움.
+        public const float PourHoverHeightRatio = 0.85f; // 도착 병 높이 대비, 그 위로 얼마나 띄울지.
+        // 물줄기는 곡선이 아니라 직선 하나 — 짧은 사각형을 여러 개 이어 곡선으로
+        // 그렸더니 마디마다 꺾여 보여서 오히려 부자연스러웠다(사용자 확정, 2026-08-26).
+        public const float PourStreamBaseThickness = 10f;
     }
 }

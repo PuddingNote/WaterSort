@@ -10,12 +10,9 @@ namespace ColorSort.UI
 {
     /// <summary>
     /// 게임 화면(GameDesign.md UI 배치). <see cref="PuzzleSession"/>을 유일한
-    /// 진실 소스로 삼고, 조작 한 번마다 그 상태를 그대로 다시 그린다.
-    ///
-    /// 지금은 붓기 애니메이션·무효 이동 진동·클리어/교착 팝업 같은 연출이 전부
-    /// 로그로만 남는다 — 이런 연출은 물 소재 특유의 것(docs/Sprites.md)이라
-    /// 스프라이트와 정책(붓기 시간 등, GameDesign.md TBD)이 정해진 뒤에 붙인다.
-    /// 지금 이 단계의 목표는 "규칙이 실제로 정확하게 동작하는 화면"이다.
+    /// 진실 소스로 삼는다 — 조작이 성공하면 Board는 그 즉시 바뀌지만, 화면은
+    /// <see cref="PourAnimator"/>가 붓기 연출로 서서히 따라잡는다(하이라이트만
+    /// 즉시 갱신). 무효 이동 진동·클리어/교착 팝업은 아직 로그로만 남는다.
     /// </summary>
     public sealed class GameView : MonoBehaviour
     {
@@ -34,6 +31,7 @@ namespace ColorSort.UI
         private RectTransform _bottleArea;
         private Button _undoButton;
         private Button _hintButton;
+        private PourAnimator _pourAnimator;
 
         private int? _selectedIndex;
         private (int from, int to)? _hintMove;
@@ -67,6 +65,17 @@ namespace ColorSort.UI
             BuildTopBar(root);
             BuildBottleArea(root);
             BuildBottomBar(root);
+
+            // 붓는 병(그리드에서 잠깐 떼어내 자유롭게 움직임)과 물줄기 둘 다 병/버튼보다
+            // 항상 위에 그려져야 하니 마지막에 만든 형제로 둔다.
+            var effectsLayer = UiFactory.CreatePanel(root, "EffectsLayer", Color.clear);
+            UiFactory.Stretch(effectsLayer);
+            effectsLayer.gameObject.GetComponent<Image>().raycastTarget = false;
+
+            var audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+
+            _pourAnimator = new PourAnimator(this, _session, effectsLayer, audioSource);
 
             RebuildBottles();
         }
@@ -175,6 +184,13 @@ namespace ColorSort.UI
             if (topRowCount > 0) BuildRow(0, topRowCount, containers);
             BuildRow(topRowCount, bottomRowCount, containers);
 
+            // 레이아웃 그룹이 병들의 실제 크기를 아직 계산하기 전일 수 있다 — 그 상태로
+            // Refresh하면 BottleView.FillArea.rect.height가 확정 전 값(기본 100 등)으로
+            // 읽혀서 물이 잔뜩 얇게 나오는 버그가 있었다(이동시킨 병만 그 뒤에 저절로
+            // 정상 크기로 고쳐졌음 — 그때는 이미 레이아웃이 끝난 뒤라서). 초기 배치
+            // 전에 레이아웃을 강제로 지금 확정시킨다.
+            Canvas.ForceUpdateCanvases();
+
             RefreshAllBottles();
         }
 
@@ -194,36 +210,55 @@ namespace ColorSort.UI
 
         private void OnBottleTapped(int index)
         {
+            // 지금 붓고 있는(원래 자리로 아직 안 돌아온) 병은 탭을 완전히 무시한다 —
+            // 다른 병끼리 겹쳐서 동시에 움직이는 건 괜찮고, 도착 병도 여러 병에서
+            // 연달아 쏟아붓는 걸 그대로 허용한다(둘 다 사용자 확정).
+            if (_pourAnimator.IsBusy(index)) return;
+
             _hintMove = null; // 힌트는 다음 조작 전까지만 유효
 
             if (_selectedIndex == null)
             {
                 if (_session.Board.Containers[index].IsEmpty) return; // 빈 병은 출발점이 될 수 없음
                 _selectedIndex = index;
-                RefreshAllBottles();
+                RefreshHighlights();
                 return;
             }
 
             if (_selectedIndex.Value == index)
             {
                 _selectedIndex = null; // 같은 병 재탭 = 선택 취소
-                RefreshAllBottles();
+                RefreshHighlights();
                 return;
             }
 
             int from = _selectedIndex.Value;
             _selectedIndex = null;
             var result = _session.TryMove(from, index);
-            RefreshAllBottles();
 
-            if (!result.Success)
+            // 내용물 갱신은 여기서 즉시 하지 않는다 — 성공한 이동은 PourAnimator가
+            // 붓기 연출로 서서히 반영하고, 실패한 이동은 애초에 Board가 안 바뀌었으니
+            // 하이라이트만 정리하면 된다. 다른 병에서 진행 중인 연출은 그대로 둔다
+            // (입력을 막지 않기로 확정 — GameDesign.md).
+            //
+            // 클리어/교착 판정(EvaluateBoardState)은 성공한 이동이면 붓기 연출이
+            // 실제로 다 끝난 뒤에 한다 — Board 자체는 TryMove 순간 이미 바뀌어서
+            // 그 즉시 판정하면 마지막 물병이 화면에 다 차는 걸 보여주기도 전에
+            // 클리어 처리되어 버린다(실제로 겪은 버그).
+            if (result.Success)
+                _pourAnimator.Play(result, _bottleViews[result.FromIndex], _bottleViews[result.ToIndex], onComplete: EvaluateBoardState);
+            else
+            {
                 Debug.Log("[GameView] 무효 이동 — TODO: 진동/튕김 피드백");
+                EvaluateBoardState();
+            }
 
-            EvaluateBoardState();
+            RefreshHighlights();
         }
 
         private void OnUndoClicked()
         {
+            _pourAnimator.CancelAll(); // 진행 중인 붓기 연출을 끊고 즉시 이전 상태로 스냅.
             _session.TryUndo();
             _selectedIndex = null;
             _hintMove = null;
@@ -232,6 +267,7 @@ namespace ColorSort.UI
 
         private void OnResetClicked()
         {
+            _pourAnimator.CancelAll();
             _session.ResetToInitial();
             _selectedIndex = null;
             _hintMove = null;
@@ -247,7 +283,7 @@ namespace ColorSort.UI
                 return;
             }
             _hintMove = (move.Value.FromIndex, move.Value.ToIndex);
-            RefreshAllBottles();
+            RefreshHighlights(); // 내용물은 안 바뀌었으니 하이라이트만 — 진행 중인 연출을 안 건드림.
         }
 
         private void OnAddContainerClicked()
@@ -264,14 +300,24 @@ namespace ColorSort.UI
                 "TITLE", () => { _activeDialog = null; _callbacks?.OnBack?.Invoke(); });
         }
 
+        /// <summary>내용물 + 하이라이트를 전부 즉시 다시 그린다(애니메이션 없음) —
+        /// 진행 중인 붓기 연출을 그대로 덮어써버리므로, 라운드 최초 배치나 Undo/Reset
+        /// 처럼 상태를 강제로 스냅해야 할 때만 쓴다.</summary>
         private void RefreshAllBottles()
         {
             var containers = _session.Board.Containers;
             for (int i = 0; i < _bottleViews.Count; i++)
-            {
                 _bottleViews[i].Refresh(containers[i]);
+
+            RefreshHighlights();
+        }
+
+        /// <summary>선택/힌트 하이라이트와 버튼 활성 상태만 다시 그린다 — 병 내용물은
+        /// 안 건드리므로 다른 병에서 진행 중인 붓기 연출을 방해하지 않는다.</summary>
+        private void RefreshHighlights()
+        {
+            for (int i = 0; i < _bottleViews.Count; i++)
                 _bottleViews[i].SetHighlight(Color.clear);
-            }
 
             if (_selectedIndex.HasValue)
                 _bottleViews[_selectedIndex.Value].SetHighlight(SelectedHighlight);
