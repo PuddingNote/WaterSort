@@ -334,6 +334,7 @@ namespace ColorSort.UI
             if (move == null)
             {
                 Debug.Log("[GameView] 힌트: 다음 수를 못 찾음");
+                Toast.Show(_canvasRoot, "NO HINT AVAILABLE");
                 RefreshHighlights();
                 return;
             }

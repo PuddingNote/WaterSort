@@ -548,6 +548,27 @@ Refresh가 **아직 애니메이션 중인 다른 붓기의 세그먼트까지 �
   있음). `CancelAll()`에서도 `_activeDestCounts`를 같이 비워서
   Undo/Reset이 끊어버린 붓기의 카운트가 안 남게 했다.
 
+## 힌트를 더 못 찾을 때 화면 가운데 토스트 텍스트 (2026-09-07)
+
+힌트가 다음 수를 못 찾으면(`HintSolver.FindNextMove`가 null) 그동안
+콘솔 로그로만 남기고 화면엔 아무 반응이 없었다. 유저 요청으로 화면
+가운데 잠깐 떴다가 사라지는 토스트 텍스트(`Toast`)를 추가했다 —
+`GameView.OnHintClicked`의 `move == null` 분기에서
+`Toast.Show(_canvasRoot, "NO HINT AVAILABLE")` 호출.
+
+연출은 3단계(사용자가 정확히 지정): ① 가운데보다 `ToastRiseDistance`만큼
+위에서 투명한 채로 생성 → 가운데로 부드럽게(smoothstep) 이동하며 동시에
+투명→불투명, 도착과 동시에 멈춤 ② 잠깐 유지 ③ 위치는 그대로 두고
+불투명→투명으로 사라짐. `CanvasGroup.alpha`로 불투명도를, `RectTransform.anchoredPosition`
+Lerp로 위치를 같이 제어하는 코루틴 하나(`ToastRunner`)로 처리했다 —
+`PourAnimator.Tween`과 같은 패턴(간단한 로컬 `Tween` 헬퍼 + smoothstep
+이징)을 재사용. 텍스트는 프로젝트 전체가 쓰는 `UiTheme.Font`, 흰색
+(`UiTheme.TextPrimary`) 그대로다. 입력은 막지 않는다(다른 오버레이들과
+같은 원칙) — `raycastTarget`/`CanvasGroup.blocksRaycasts` 전부 끔.
+
+힌트 외에 "더 이상 진행 불가" 류의 다른 상황(교착 상태 등)에서도 재사용할
+수 있게 `Toast.Show(canvasRoot, message)`를 범용으로 만들어뒀다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접

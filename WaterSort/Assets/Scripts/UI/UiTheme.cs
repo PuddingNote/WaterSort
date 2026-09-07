@@ -131,5 +131,16 @@ namespace ColorSort.UI
         // 물줄기는 곡선이 아니라 직선 하나 — 짧은 사각형을 여러 개 이어 곡선으로
         // 그렸더니 마디마다 꺾여 보여서 오히려 부자연스러웠다(사용자 확정, 2026-08-26).
         public const float PourStreamBaseThickness = 10f;
+
+        // 화면 가운데 잠깐 떴다가 사라지는 토스트 텍스트(힌트 더 못 찾을 때 등) 규격 —
+        // Toast 참고. 등장: 가운데보다 ToastRiseDistance만큼 위에서 생성돼 가운데로
+        // 부드럽게 이동하며 투명->불투명. 유지 후 퇴장: 자리 그대로 불투명->투명.
+        public const float ToastFontSize = 55f;
+        public const float ToastWidth = 900f;
+        public const float ToastHeight = 140f;
+        public const float ToastRiseDistance = 60f;
+        public const float ToastInDuration = 0.35f;
+        public const float ToastHoldDuration = 1.1f;
+        public const float ToastOutDuration = 0.4f;
     }
 }
