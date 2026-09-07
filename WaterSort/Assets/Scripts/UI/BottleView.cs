@@ -86,7 +86,44 @@ namespace ColorSort.UI
             UiFactory.Stretch(Visual);
             Visual.pivot = new Vector2(0.5f, VisualPivotY); // 바닥에 가까운 축 — 실제로 "따르는" 느낌이 나는 기울기.
 
-            FillArea = UiFactory.CreatePanel(Visual, "FillArea", Color.clear);
+            // UiSkin.BottleBackground가 있으면 그 스프라이트를 그대로 쓴다. 버튼/다이얼로그
+            // 배경과 달리 여기서는 OutlinePlaceholder(거의 안 보이는 자리표시자 색)를
+            // 그대로 틴트로 남기면 안 된다 — 완성된 그림 위에 16% 알파를 곱하면 그림
+            // 자체가 거의 안 보이게 된다. 그래서 스프라이트가 있을 땐 색을 흰색(원래
+            // 그림 그대로)으로 되돌린다.
+            var bottleSprite = UiTheme.Skin != null ? UiTheme.Skin.BottleBackground : null;
+            if (bottleSprite != null)
+            {
+                var visualImage = Visual.GetComponent<Image>();
+                visualImage.sprite = bottleSprite;
+                visualImage.type = Image.Type.Sliced;
+                visualImage.color = Color.white;
+            }
+
+            // 물(세그먼트)은 그냥 네모난 사각형이라, 병 그림이 시험관처럼 목이 좁아지거나
+            // 바닥이 둥글면 그 모양 밖으로 네모난 물이 삐져나와 보인다(실제로 겪은 문제).
+            // UiSkin.BottleMask(사용자가 직접 그린, 안쪽만 불투명인 그림)가 있으면 Unity의
+            // Mask 컴포넌트로 그 실루엣 밖을 진짜로 잘라낸다. 이전에 회전하는 콘텐츠(붓는
+            // 병의 물 기울임 효과)에 Mask를 썼을 땐 원인 불명으로 안 먹혔지만(Architecture.md
+            // 참고), 이건 회전 없는 고정 실루엣 클리핑이라 같은 문제가 아니다.
+            var maskSprite = UiTheme.Skin != null ? UiTheme.Skin.BottleMask : null;
+            Transform fillAreaParent = Visual;
+            if (maskSprite != null)
+            {
+                var maskRoot = UiFactory.CreatePanel(Visual, "WaterMaskRoot", Color.white);
+                UiFactory.Stretch(maskRoot);
+                var maskRootImage = maskRoot.GetComponent<Image>();
+                maskRootImage.sprite = maskSprite;
+                maskRootImage.type = Image.Type.Sliced;
+                maskRootImage.raycastTarget = false;
+
+                var mask = maskRoot.gameObject.AddComponent<Mask>();
+                mask.showMaskGraphic = false; // 마스크 그림 자체는 안 보이고 클리핑 역할만.
+
+                fillAreaParent = maskRoot;
+            }
+
+            FillArea = UiFactory.CreatePanel(fillAreaParent, "FillArea", Color.clear);
             UiFactory.Stretch(FillArea, padding: FillAreaPadding);
 
             _highlight = UiFactory.CreateImage(Root, "Highlight", sprite: null, Color.clear);
@@ -181,6 +218,18 @@ namespace ColorSort.UI
         {
             var img = UiFactory.CreateImage(FillArea, "Segment", sprite: null, Color.clear);
             img.raycastTarget = false;
+
+            // UiSkin.WaterFill이 있으면 그 스프라이트를 쓴다 — 흰색/밝은 회색 바탕으로
+            // 만든 그림이라 가정하고, 색은 ApplySegmentUnitCount가 매번 WaterPalette
+            // 색으로 계속 틴트한다(여기서 색을 건드리지 않음 — 버튼/다이얼로그와 같은
+            // 이유로, 스프라이트가 생겼다고 지정한 색이 무시되면 안 됨).
+            var waterSprite = UiTheme.Skin != null ? UiTheme.Skin.WaterFill : null;
+            if (waterSprite != null)
+            {
+                img.sprite = waterSprite;
+                img.type = Image.Type.Sliced;
+            }
+
             var rect = (RectTransform)img.transform;
             rect.anchorMin = new Vector2(0f, 0f);
             rect.anchorMax = new Vector2(1f, 0f);

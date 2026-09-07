@@ -32,6 +32,18 @@ namespace ColorSort.UI
         [Header("팝업/다이얼로그 배경 (9-slice 권장)")]
         public Sprite DialogBackground;
 
+        [Header("물병 배경 (9-slice 권장 — 병 윤곽/유리 그림. 이미 완성된 그림이라 틴트 없이 그대로 씀)")]
+        public Sprite BottleBackground;
+
+        [Tooltip("BottleBackground의 실루엣(목이 좁아지거나 바닥이 둥근 모양 등) 안쪽, 즉 실제로 " +
+                 "물이 차 있어도 되는 영역만 불투명(알파 255)으로 칠하고 나머지(병 바깥 + 유리 " +
+                 "테두리)는 완전히 투명(알파 0)으로 만든 그림 — Unity UI Mask 컴포넌트로 물을 " +
+                 "이 실루엣 안에만 보이게 잘라낸다. 비워두면 물이 사각형 그대로 나온다.")]
+        public Sprite BottleMask;
+
+        [Header("물 채우기 (9-slice 권장 — 흰색/밝은 회색 바탕으로 만들면 색상별로 자동 틴트됨)")]
+        public Sprite WaterFill;
+
         [Header("사운드 (선택 — 비워두면 무음 처리)")]
         [Tooltip("물 붓기 사운드. 여러 붓기가 겹치면 항상 이 클립을 재생하는 AudioSource " +
                  "하나를 공유해서, Play()가 자동으로 이전 재생을 끊고 새로 시작한다.")]
