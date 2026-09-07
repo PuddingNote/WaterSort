@@ -244,22 +244,22 @@ namespace ColorSort.UI
             return new SegmentHandle(this, _segments[_segments.Count - 1]);
         }
 
-        /// <summary>도착 병 — color와 같은 색이 이미 맨 위에 있으면 그 세그먼트를 그대로
-        /// 키우고, 아니면(빈 병) 높이 0짜리 새 세그먼트를 만들어서 키워나갈 핸들을
-        /// 돌려준다.</summary>
+        /// <summary>도착 병 — 색과 무관하게 항상 높이 0짜리 새 세그먼트를 만들어서
+        /// 키워나갈 핸들을 돌려준다(색이 같아도 기존 맨 위 세그먼트를 재사용하지
+        /// 않음 — 같은 병에 두 병에서 동시에 같은 색을 쏟아부으면, 둘이 같은
+        /// Segment 객체를 공유해서 서로의 애니메이션 진행값을 덮어써버리는 버그가
+        /// 실제로 있었다: growStart/growTarget을 각자 다른 시점에 스냅샷 떠서
+        /// 절대값으로 SetUnitCount하다 보니, 나중에 시작한 쪽이 앞선 쪽의 진행을
+        /// 지워버리거나, 먼저 끝난 쪽의 Refresh가 아직 애니메이션 중인 세그먼트를
+        /// 통째로 파괴해서 물이 갑자기 확 차오르는 것처럼 보였다. 색이 같으면
+        /// 세그먼트 경계가 안 보이니(둘 다 같은 색 사각형) 여러 개로 쌓여도
+        /// 시각적으로는 하나처럼 보이고, 각 붓기가 끝나면 Refresh가 Board 기준으로
+        /// 다시 하나로 합쳐 그린다.</summary>
         public SegmentHandle BeginGrowTop(ColorId color)
         {
-            Segment segment;
-            if (_segments.Count > 0 && _segments[_segments.Count - 1].Color.Equals(color))
-            {
-                segment = _segments[_segments.Count - 1];
-            }
-            else
-            {
-                segment = new Segment { Color = color, UnitCount = 0f, Image = CreateSegmentImage() };
-                _segments.Add(segment);
-                ApplySegmentUnitCount(segment, 0f);
-            }
+            var segment = new Segment { Color = color, UnitCount = 0f, Image = CreateSegmentImage() };
+            _segments.Add(segment);
+            ApplySegmentUnitCount(segment, 0f);
             return new SegmentHandle(this, segment);
         }
 

@@ -32,6 +32,15 @@ namespace ColorSort.UI
         private readonly Dictionary<GameObject, Image> _streamImages = new Dictionary<GameObject, Image>();
         private readonly HashSet<int> _busySourceIndices = new HashSet<int>();
 
+        /// <summary>도착 병 인덱스별로 지금 그 병으로 들어오고 있는 붓기가 몇 개인지 —
+        /// 여러 병에서 같은 병으로 동시에 쏟아붓는 걸 허용하다 보니(사용자 확정),
+        /// 그중 하나가 먼저 끝났다고 곧바로 BottleView.Refresh를 부르면 아직 애니메이션
+        /// 중인 다른 붓기의 세그먼트까지 통째로 파괴돼서, 그 붓기가 눈에 안 보이게
+        /// 멈췄다가 자기 차례에 갑자기 확 차오르는 것처럼 보이는 버그가 실제로 있었다
+        /// (PlayRoutine 참고). 같은 도착 병을 향한 붓기가 전부 끝난 마지막 순간에만
+        /// Refresh한다.</summary>
+        private readonly Dictionary<int, int> _activeDestCounts = new Dictionary<int, int>();
+
         /// <summary>진행 중인 붓기 하나를 CancelAll이 "자연 종료와 똑같이" 되돌리는 데
         /// 필요한 최소 정보. PlayRoutine이 병을 그리드에서 떼어내는 순간 채워 넣는다
         /// (그 전에 취소되면 비어있는 채로 남는데, 그때는 애초에 되돌릴 것도 없다).</summary>
@@ -67,6 +76,8 @@ namespace ColorSort.UI
         public void Play(MoveResult move, BottleView source, BottleView dest, Action onComplete = null)
         {
             _busySourceIndices.Add(move.FromIndex);
+            _activeDestCounts.TryGetValue(move.ToIndex, out int destCount);
+            _activeDestCounts[move.ToIndex] = destCount + 1;
 
             var entry = new ActivePour { Source = source };
             entry.Routine = _host.StartCoroutine(RunAndUntrack());
@@ -77,6 +88,15 @@ namespace ColorSort.UI
                 yield return PlayRoutine(move, source, dest, entry);
                 _active.Remove(entry);
                 _busySourceIndices.Remove(move.FromIndex);
+
+                // PlayRoutine이 정상적으로 끝났든, 방어적 분기(shrink == null)로
+                // 일찍 끝났든 항상 여기까지는 도달한다 — _activeDestCounts를
+                // Play() 시작 시점에 이미 늘려놨으니, 여기서도 항상 짝을 맞춰
+                // 줄여야 한다(안 그러면 카운트가 영영 안 줄어들어서 그 도착 병은
+                // 앞으로 절대 Refresh가 안 되는 버그가 생김).
+                if (EndDestPour(move.ToIndex))
+                    dest.Refresh(_session.Board.Containers[move.ToIndex]);
+
                 if (_active.Count == 0) onComplete?.Invoke();
             }
         }
@@ -114,6 +134,23 @@ namespace ColorSort.UI
             _activeStreams.Clear();
             _streamImages.Clear();
             _busySourceIndices.Clear(); // StopCoroutine은 RunAndUntrack의 정리 코드를 건너뛰므로 여기서 직접 비움.
+            _activeDestCounts.Clear(); // 마찬가지 이유 — 안 비우면 나중 붓기의 EndDestPour 카운트가 어긋난다.
+        }
+
+        /// <summary>도착 병 하나로 들어오던 붓기 중 하나가 끝났다고 알린다. 같은 병으로
+        /// 들어오는 다른 붓기가 아직 남아있으면 false(지금은 Refresh하면 안 됨),
+        /// 이번이 마지막이었으면 true(이제 Board 기준으로 최종 스냅해도 안전함).</summary>
+        private bool EndDestPour(int destIndex)
+        {
+            if (!_activeDestCounts.TryGetValue(destIndex, out int count)) return true; // 방어적 — 정상 흐름에선 항상 있어야 함.
+            count -= 1;
+            if (count <= 0)
+            {
+                _activeDestCounts.Remove(destIndex);
+                return true;
+            }
+            _activeDestCounts[destIndex] = count;
+            return false;
         }
 
         private IEnumerator PlayRoutine(MoveResult move, BottleView source, BottleView dest, ActivePour entry)
@@ -201,10 +238,14 @@ namespace ColorSort.UI
             root.SetParent(originalParent, false);
             root.SetSiblingIndex(siblingIndex);
 
-            // 최종 스냅 — 겹친 이동이나 부동소수 오차로 어긋났을 수 있는 걸 Board
-            // 기준으로 확실히 정리한다(이 두 병만 건드리고, 다른 진행 중인 연출은 안 건드림).
+            // 출발 병 최종 스냅 — 겹친 이동이나 부동소수 오차로 어긋났을 수 있는 걸
+            // Board 기준으로 확실히 정리한다. 출발 병은 항상 이 붓기 하나만의
+            // 소유라(IsBusy가 같은 병을 또 출발점으로 못 고르게 막음) 바로
+            // Refresh해도 안전하다. 도착 병 쪽은 다른 붓기가 아직 붓고 있을 수
+            // 있어서(사용자 확정으로 허용됨) 여기서 바로 하지 않고 RunAndUntrack이
+            // (PlayRoutine이 여기 도달하지 못하고 일찍 끝나도 항상 실행되는 지점)
+            // EndDestPour로 판단해서 처리한다 — 자세한 이유는 그쪽 주석 참고.
             source.Refresh(_session.Board.Containers[move.FromIndex]);
-            dest.Refresh(_session.Board.Containers[move.ToIndex]);
         }
 
         private static GameObject CreateSpacer(Transform parent, int siblingIndex)
