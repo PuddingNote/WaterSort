@@ -43,9 +43,16 @@ namespace ColorSort.UI
             MinSlotCount = 4,
             MaxSlotCount = 8,
             // 1개면 무작위 배분 자체가 거의 안 풀린다(실측: 색10·슬롯8 기준 1개=0% 성공,
-            // 2개=99~100% 성공) — "적을수록 어렵다"가 아니라 최소한의 풀림 여유선.
+            // 2개=99~100% 성공) — "적을수록 어렵다"가 아니라 최소한의 풀림 여유선이라
+            // MinEmptyContainerCount는 2 밑으로 못 내린다. 화면에 보이는 빈 병은
+            // 여기(일반 빈 병) + 병 추가용 보너스 병(항상 빈 채로 시작, 1개)을 합친
+            // 값인데, 최대 3개로 묶어 달라는 요청(2026-09-08 확정)을 만족시키려면
+            // 일반 빈 병 쪽 상한을 2로 낮춰야 한다(2+보너스 1=3, 절대 안 넘음) — 그
+            // 결과 일반 빈 병 개수 자체가 Min=Max=2로 고정돼서, 이제 이 값은 더 이상
+            // 라운드마다 무작위로 2~3 사이를 오가지 않는다(예전엔 난이도에 살짝
+            // 곁들이던 변주였는데, 그 여지가 없어짐 — 사용자 확정 사항이라 그대로 둠).
             MinEmptyContainerCount = 2,
-            MaxEmptyContainerCount = 3,
+            MaxEmptyContainerCount = 2,
             MinContainerCount = 7,
             MaxContainerCount = 11
         };
