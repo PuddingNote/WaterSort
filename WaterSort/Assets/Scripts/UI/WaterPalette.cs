@@ -31,7 +31,11 @@ namespace ColorSort.UI
             return Colors[index];
         }
 
-        // 병 최소 7개~최대 12개, 용량 4~8칸, 색 5~10종(사용자 확정 스펙).
+        // 병 최소 7개~최대 11개(일반 병 기준), 용량 4~8칸, 색 5~10종(사용자 확정
+        // 스펙). 화면엔 여기에 병 추가(광고 보상)용 보너스 병이 항상 1개 더
+        // 붙어서 최종적으로 최대 12개가 뜬다(RoundBuilder.AppendContainer 참고,
+        // 2026-09-08: "화면의 병은 최대 12개로" 확정 — 기존 일반 병 최대
+        // 12개였던 걸 11개로 한 칸 낮춰서 보너스 병 자리를 확보).
         public static readonly RoundDifficultyCurve.ThemeLimits ThemeLimits = new RoundDifficultyCurve.ThemeLimits
         {
             MinColorCount = 5,
@@ -43,7 +47,7 @@ namespace ColorSort.UI
             MinEmptyContainerCount = 2,
             MaxEmptyContainerCount = 3,
             MinContainerCount = 7,
-            MaxContainerCount = 12
+            MaxContainerCount = 11
         };
     }
 }

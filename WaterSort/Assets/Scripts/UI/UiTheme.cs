@@ -119,6 +119,12 @@ namespace ColorSort.UI
         public const float BottleWidth = 120f;
         public const float BottleHeight = 420f;
 
+        // 병 추가(광고 보상) 기능 — 아직 안 열린 부분의 병 배경 알파 배율. 처음엔
+        // 50%로 시작했는데 실제로 보니 다른 병과 구분이 잘 안 된다는 피드백으로
+        // 25%(=투명도 75%)로 더 낮췄다(사용자 확정, 2026-09-08). 원래 알파에
+        // 곱해서 쓴다(원래도 반투명한 자리표시자 색이면 거기서 더 흐려짐).
+        public const float LockedBottleAlpha = 0.25f;
+
         // 붓기 애니메이션 규격 — GameDesign.md TBD 확정(2026-08-25): 총 소요시간 약 1초.
         // 실제 물병 게임처럼 붓는 병이 도착 병 위로 들려 올라가 기울여지고, 다 부으면
         // 제자리로 돌아온다(들어올리기/복귀에 나머지 시간을 나눠 쓴다). 입력은 막지

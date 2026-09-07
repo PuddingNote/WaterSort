@@ -31,6 +31,7 @@ namespace ColorSort.UI
         private RectTransform _bottleArea;
         private Button _undoButton;
         private Button _hintButton;
+        private Button _addContainerButton;
         private PourAnimator _pourAnimator;
 
         private int? _selectedIndex;
@@ -170,7 +171,7 @@ namespace ColorSort.UI
             UiFactory.AddHorizontalLayout(rightGroup, spacing: 16f, forceExpandWidth: false, forceExpandHeight: true);
 
             _hintButton = UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.HintIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnHintClicked, fallbackText: "HINT");
-            UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.AddContainerIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "ADD");
+            _addContainerButton = UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.AddContainerIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "ADD");
         }
 
         private void RebuildBottles()
@@ -209,7 +210,8 @@ namespace ColorSort.UI
             for (int i = 0; i < count; i++)
             {
                 int containerIndex = startIndex + i;
-                var bottle = new BottleView(row, containers[containerIndex].Capacity, containerIndex, OnBottleTapped);
+                var container = containers[containerIndex];
+                var bottle = new BottleView(row, container.Capacity, container.UnlockedCapacity, containerIndex, OnBottleTapped);
                 _bottleViews.Add(bottle);
             }
         }
@@ -357,10 +359,21 @@ namespace ColorSort.UI
             PerformMove(move.Value.FromIndex, move.Value.ToIndex);
         }
 
+        /// <summary>병 추가(광고 보상) — 매 라운드 마지막 병(RoundBuilder가 항상 붙여 둠)의
+        /// 잠긴 칸을 1칸 연다. 원래 기능은 보상형 광고를 다 봐야 열리지만, 광고 SDK
+        /// 연동 전인 지금은 누르면 바로 적용된다(사용자 확정 — 나중에 광고 시청
+        /// 성공 콜백 안에서 이 메서드를 부르는 걸로 그대로 이어붙일 계획, TODO).
+        /// 내용물이 아니라 "그 병이 얼마나 열려 있는지"만 바뀌는 거라 붓기 연출과는
+        /// 무관 — 애니메이션 진행 중이어도 아무 때나 눌러도 안전하다.</summary>
         private void OnAddContainerClicked()
         {
-            // TODO: 병 추가는 광고/재화(Managers) 연동 이후 — 정책 자체가 GameDesign.md TBD.
-            Debug.Log("[GameView] 병 추가 — 아직 정책 미확정");
+            if (!_session.TryUnlockBonusContainer()) return;
+
+            int bonusIndex = _session.Board.Containers.Count - 1;
+            var bonus = _session.Board.Containers[bonusIndex];
+            _bottleViews[bonusIndex].SetUnlockedCapacity(bonus.UnlockedCapacity);
+
+            RefreshHighlights(); // 다 열렸으면 버튼을 비활성화하기 위해.
         }
 
         private void RequestBackToTitle()
@@ -378,7 +391,14 @@ namespace ColorSort.UI
         {
             var containers = _session.Board.Containers;
             for (int i = 0; i < _bottleViews.Count; i++)
+            {
                 _bottleViews[i].Refresh(containers[i]);
+                // 병 추가로 열린 칸 수도 같이 맞춘다 — Undo/Reset은 Board를 통째로
+                // 옛 스냅샷으로 갈아 끼우므로(PuzzleSession이 그 시점에 맞게
+                // 보정은 해 주지만) 화면 쪽 오버레이는 따로 갱신해 줘야 한다.
+                // 보너스 병이 아닌 일반 병은 오버레이 자체가 없어서 그냥 무시된다.
+                _bottleViews[i].SetUnlockedCapacity(containers[i].UnlockedCapacity);
+            }
 
             RefreshHighlights();
         }
@@ -397,6 +417,7 @@ namespace ColorSort.UI
 
             _undoButton.interactable = _session.CanUndo;
             _hintButton.interactable = !_session.IsCleared && !_hintInFlight; // 계산 중엔 중복 클릭 방지.
+            _addContainerButton.interactable = _session.CanUnlockBonusContainer; // 다 열렸으면 더 못 누르게.
         }
 
         private void EvaluateBoardState()

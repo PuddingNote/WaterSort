@@ -36,6 +36,12 @@ namespace ColorSort.UI
 
         public int Capacity { get; }
 
+        /// <summary>병 추가(광고 보상) 기능으로 아직 다 안 열린 병에서만 쓰인다 — 실제로
+        /// 열린 높이만큼만 불투명하게 보여주는 오버레이의 클립 영역. 생성 시점에
+        /// unlockedCapacity가 이미 capacity와 같았으면(일반 병 전부) 아예 안 만든다
+        /// (매 라운드 딱 하나뿐인 보너스 병만 해당).</summary>
+        private RectTransform _lockedClip;
+
         // internal(private 아님) — C#의 private는 "중첩 타입 자신 + 그 안에 또
         // 중첩된 타입"까지만 보이고 바깥 클래스(BottleView 본체)로는 안 넓어진다
         // (반대 방향, 즉 바깥의 private 멤버가 중첩 타입에서 보이는 것만 성립).
@@ -65,7 +71,7 @@ namespace ColorSort.UI
         private readonly List<Segment> _segments = new List<Segment>();
         private readonly Image _highlight;
 
-        public BottleView(Transform parent, int capacity, int containerIndex, Action<int> onTapped)
+        public BottleView(Transform parent, int capacity, int unlockedCapacity, int containerIndex, Action<int> onTapped)
         {
             Capacity = capacity;
 
@@ -89,12 +95,50 @@ namespace ColorSort.UI
             // 자체가 거의 안 보이게 된다. 그래서 스프라이트가 있을 땐 색을 흰색(원래
             // 그림 그대로)으로 되돌린다.
             var bottleSprite = UiTheme.Skin != null ? UiTheme.Skin.BottleBackground : null;
+            var visualImage = Visual.GetComponent<Image>();
             if (bottleSprite != null)
             {
-                var visualImage = Visual.GetComponent<Image>();
                 visualImage.sprite = bottleSprite;
                 visualImage.type = Image.Type.Sliced;
                 visualImage.color = Color.white;
+            }
+
+            // 병 추가(광고 보상) 기능 — 아직 다 안 열린 병(unlockedCapacity < capacity)은
+            // Visual 자체(방금 위에서 색/스프라이트를 정한 배경 그림)를 절반 투명한
+            // "베이스"로 낮추고, 그 위에 실제로 열린 높이(바닥부터 unlockedCapacity
+            // 칸만큼)까지만 원래 불투명도 그대로인 복사본을 덧씌운다 — 그러면 바닥부터
+            // 열린 데까지는 선명하고 그 위는 흐릿한, "아래부터 차오르며 선명해지는"
+            // 모습이 된다(사용자 확정 스펙). 물 세그먼트와 달리 이건 병 배경 자체의
+            // 문제라 물처럼 늘어나는 사각형이 아니라, 항상 병 전체 크기로 고정해 두고
+            // RectMask2D로 아래쪽 일부만 보이게 자른다 — 늘였다 줄였다 하면 그림이
+            // 찌그러져 보이므로(사용자 확정 아님, 실무 판단) 안 된다. RectMask2D는
+            // 회전(Visual.SetTilt)과 무관하게 항상 부모(Visual)에 딱 붙어서 같이
+            // 돌기만 하니, 예전에 겪었던 "회전 콘텐츠 + Mask" 문제(Architecture.md)와는
+            // 다르다.
+            if (unlockedCapacity < capacity)
+            {
+                var baseColor = visualImage.color;
+                var fullColor = baseColor;
+                baseColor.a *= UiTheme.LockedBottleAlpha;
+                visualImage.color = baseColor;
+
+                _lockedClip = UiFactory.CreatePanel(Visual, "UnlockedClip", Color.clear);
+                _lockedClip.GetComponent<Image>().raycastTarget = false;
+                _lockedClip.gameObject.AddComponent<RectMask2D>();
+
+                var unlockedCopy = UiFactory.CreateImage(_lockedClip, "UnlockedBottle", bottleSprite, fullColor);
+                unlockedCopy.type = bottleSprite != null ? Image.Type.Sliced : Image.Type.Simple;
+                unlockedCopy.raycastTarget = false;
+                var copyRect = (RectTransform)unlockedCopy.transform;
+                // 부모(_lockedClip)의 세로 크기가 얼마든(SetUnlockedCapacity가 매번
+                // 바꿈) 이 그림 자체는 항상 병 전체 크기로 바닥에 붙여서, 잘리는
+                // 부분만 RectMask2D가 감춘다 — 그림이 안 찌그러지는 이유.
+                copyRect.anchorMin = copyRect.anchorMax = new Vector2(0.5f, 0f);
+                copyRect.pivot = new Vector2(0.5f, 0f);
+                copyRect.sizeDelta = new Vector2(UiTheme.BottleWidth, UiTheme.BottleHeight);
+                copyRect.anchoredPosition = Vector2.zero;
+
+                ApplyLockedClipHeight(unlockedCapacity);
             }
 
             // 물(세그먼트)은 그냥 네모난 사각형이라, 병 그림이 시험관처럼 목이 좁아지거나
@@ -181,8 +225,25 @@ namespace ColorSort.UI
         }
 
         /// <summary>슬롯 1칸의 실제 픽셀 높이 — Count만큼 옮길 때 세그먼트를 얼마나
-        /// 늘리고 줄일지 계산하는 기준.</summary>
+        /// 늘리고 줄일지 계산하는 기준. 항상 Capacity(최종 최대 크기) 기준이라 병
+        /// 추가로 unlockedCapacity가 늘어나도(물이 찰 수 있는 칸이 늘어나는 것뿐)
+        /// 이미 놓인 세그먼트들의 높이/위치는 안 바뀐다.</summary>
         public float UnitHeight => FillArea.rect.height / Capacity;
+
+        /// <summary>병 추가(광고 보상)로 지금 열려 있는 칸 수가 바뀔 때마다 부른다 —
+        /// 생성 시점에 이미 다 열려 있던 병(보너스 병이 아닌 전부)은 오버레이 자체가
+        /// 없으니 조용히 무시한다. capacity에 도달하면(완전히 열림) 오버레이가 병
+        /// 전체를 덮어서 다른 일반 병과 시각적으로 구분이 안 되게 된다.</summary>
+        public void SetUnlockedCapacity(int unlockedCapacity) => ApplyLockedClipHeight(unlockedCapacity);
+
+        private void ApplyLockedClipHeight(int unlockedCapacity)
+        {
+            if (_lockedClip == null) return;
+            float fraction = Capacity > 0 ? Mathf.Clamp01((float)unlockedCapacity / Capacity) : 0f;
+            _lockedClip.anchorMin = new Vector2(0f, 0f);
+            _lockedClip.anchorMax = new Vector2(1f, fraction);
+            _lockedClip.offsetMin = _lockedClip.offsetMax = Vector2.zero;
+        }
 
         /// <summary>기울기(도). 0 = 똑바로 선 상태. 붓는 병(출발 병)에만 호출한다.</summary>
         public void SetTilt(float degrees) => Visual.localEulerAngles = new Vector3(0f, 0f, degrees);

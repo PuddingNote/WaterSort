@@ -569,6 +569,77 @@ Lerp로 위치를 같이 제어하는 코루틴 하나(`ToastRunner`)로 처리�
 힌트 외에 "더 이상 진행 불가" 류의 다른 상황(교착 상태 등)에서도 재사용할
 수 있게 `Toast.Show(canvasRoot, message)`를 범용으로 만들어뒀다.
 
+## 병 추가(광고 보상) 기능 최초 구현 (2026-09-08)
+
+`Board.cs`의 오래된 doc 주석("병 추가 등으로 용량이 다른 Container가 섞일
+가능성을 열어 둔다")이 이미 이 기능을 염두에 두고 설계돼 있었다 — 그
+설계를 실제로 채워 넣었다. 광고 SDK는 아직 없어서, 이번 구현은 "버튼
+누르면 광고 없이 바로 보상 적용"까지만이고 광고 시청 단계는 나중에
+그 자리에 끼워 넣을 자리만 마련해 뒀다(`GameView.OnAddContainerClicked`
+주석 참고).
+
+**핵심 개념 — Capacity vs UnlockedCapacity**: `Container`가 새 필드
+`UnlockedCapacity`를 갖는다(`Capacity`는 여전히 "이 병이 최종적으로 도달할
+수 있는 크기"로 불변, 생성자에서 한 번만 정해짐). `FreeSlots`/`IsFull`
+(그리고 그걸 쓰는 `IsResolved`)이 전부 `Capacity`가 아니라
+`UnlockedCapacity` 기준으로 바뀌었다 — 안 열린 칸은 `MoveRules.CanMove`
+입장에서 아예 존재하지 않는 것처럼 취급된다(`FreeSlots<=0`으로 자동 차단).
+일반 병은 생성 시 `UnlockedCapacity == Capacity`(기존과 100% 동일하게
+동작, 기존 테스트/호출부 전부 무변경으로 통과). 병 추가로 생기는 보너스
+병만 `UnlockedCapacity=0`으로 시작해서 `Container.Unlock()`으로 한 칸씩
+늘어난다. `Capacity`를 실제로 0으로 두는 방식은 시도하지 않았다 —
+생성자가 `capacity<=0`을 막아 두고 있고(의도적인 불변식), 무엇보다
+`BottleView.UnitHeight = FillArea.rect.height / Capacity`가 0으로
+나누면 그대로 깨지기 때문에, "존재하되 아직 다 못 씀"을 표현하는
+별도 필드가 필요했다.
+
+**보너스 병은 어디서 생기나**: `RoundGenerator`/`RoundDifficultyCurve`는
+전혀 안 건드렸다 — 난이도 계산·솔버 검증은 지금까지처럼 "일반 병들만으로
+확실히 풀리는 라운드"를 그대로 보장하고, `RoundBuilder.Build`가 그 결과에
+`board.AppendContainer(new Container(parameters.SlotCount, unlockedCapacity: 0))`
+로 마지막에 하나 더 붙인다(사용자 확정: "모든 라운드의 마지막 물병"). 이미
+검증이 끝난 뒤에 완전히 비어있고 못 쓰는 병을 더하는 것뿐이라 솔버 결과에
+영향이 없다(항상 빈 병이라 `IsEmpty`로 소스/목적지 후보에서 자동 제외).
+`Board`에는 컨테이너를 나중에 붙이는 public API가 없어서
+`Board.AppendContainer`를 새로 추가했다.
+
+**Undo/Reset과의 상호작용**: `GameDesign.md`에 2026-08-25에 이미 확정돼
+있던 정책("병 추가는 광고를 소비해서 얻은 아이템 개념이라 Undo/Reset으로
+없어지면 안 됨, 물 이동만 되돌아감")을 그대로 구현했다. Undo/Reset은
+`BoardHistory`의 전체 스냅샷 교체 방식이라(행동 역산이 아님), 스냅샷을
+뜬 시점 이후에 열린 칸은 스냅샷 자체엔 반영이 안 돼 있다 — 그래서
+`PuzzleSession`이 `_bonusUnlockedAmount`(지금까지 누른 총 횟수)를
+Board와 별개로 직접 들고 있다가, `TryUndo`/`ResetToInitial`로 Board를
+통째로 갈아 끼울 때마다 `SyncBonusUnlock()`으로 그 값을 보너스
+컨테이너에 다시 강제로 맞춘다(`Container.SetUnlockedCapacity` — 더하는
+게 아니라 절대값으로 맞추는 별도 메서드, `Unlock`의 상대적 +1과 구분).
+
+**화면(BottleView) — 아래부터 선명해지는 반투명 오버레이**: 물 마스크
+때와 달리 이번엔 "물처럼 늘었다 줄었다 하는 사각형"이 아니라 "병 배경
+그림 자체를 아래부터 조금씩 선명하게" 만들어야 했다. `Visual`(병 배경
+Image)의 알파를 절반으로 낮춰 "베이스"로 깔고, 그 위에 원래 알파 그대로인
+복사본 하나를 `RectMask2D`로 아래쪽 일부만 보이게 잘라서 얹는다 — 그
+복사본 자체는 항상 병 전체 크기로 고정해 두고 부모(마스크)만 높이를
+바꾸는 방식이라(FillArea 세그먼트와 반대로) 그림이 늘어나거나 찌그러지지
+않는다. `RectMask2D`는 `Visual`의 자식이라 붓기 애니메이션 중 회전할 때도
+그냥 같이 돌 뿐 상대 회전이 없어서, 예전에 "회전하는 콘텐츠 + Mask"에서
+겪었던 원인 불명 버그(위 항목들 참고)와는 다른 상황이다. 일반 병(항상
+`UnlockedCapacity==Capacity`)은 이 오버레이 자체를 생성 시점에 아예 안
+만든다(매 라운드 딱 하나뿐인 보너스 병만 해당).
+
+**후속 확정 (2026-09-08, 같은 날 바로 이어서)**:
+- "누를 때마다 1칸씩"이 2026-08-25의 "슬롯의 20%씩" 정책과 다르다고
+  물어봤더니, 의식적인 단순화라고 확인받았다 — 20%는 slotCount가 5의
+  배수가 아닌 라운드(홀수 포함)에서 반올림이 어색해지는 문제가 있어서
+  고정 1칸씩으로 정리(`GameDesign.md` 해당 TBD 항목도 체크 완료로 갱신).
+- `WaterPalette.ThemeLimits.MaxContainerCount`를 12 → 11로 낮췄다 —
+  보너스 병 1개가 항상 더 붙으므로 화면에 뜨는 병 총수는 이제 최대
+  11+1=12개로, 이 기능 도입 전과 정확히 같은 수를 유지한다(사용자
+  확정: "화면의 병은 최대 12개로").
+- 잠긴(아직 안 열린) 부분의 알파 배율을 0.5 → 0.25로 더 낮췄다 — 실제로
+  보니 50%로는 다른 병과 구분이 잘 안 된다는 피드백(사용자 확정,
+  `UiTheme.LockedBottleAlpha`).
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접

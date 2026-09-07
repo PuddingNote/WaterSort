@@ -15,18 +15,30 @@ namespace ColorSort.Core
         private readonly List<ColorId> _units;
 
         public int Capacity { get; }
+
+        /// <summary>지금 실제로 쓸 수 있는 칸 수 — 보통은 Capacity와 같지만, 병 추가
+        /// (광고 보상) 기능으로 생기는 병은 처음엔 0에서 시작해 버튼 누를 때마다
+        /// 1칸씩 늘어난다(Unlock 참고). Capacity는 "이 병이 최종적으로 도달할 수
+        /// 있는 크기"라 항상 고정이고, 실제 이동 가능 여부는 전부 이 값(과
+        /// FreeSlots/IsFull이 이 값 기준으로 계산되는 것) 하나로 판정된다 — 아직
+        /// 안 열린 칸은 존재하지 않는 것처럼 취급된다.</summary>
+        public int UnlockedCapacity { get; private set; }
+
         public IReadOnlyList<ColorId> Units => _units;
         public int Count => _units.Count;
         public bool IsEmpty => _units.Count == 0;
-        public bool IsFull => _units.Count == Capacity;
-        public int FreeSlots => Capacity - _units.Count;
+        public bool IsFull => _units.Count == UnlockedCapacity;
+        public int FreeSlots => UnlockedCapacity - _units.Count;
 
         /// <summary>더 이상 손댈 필요가 없는 상태: 비어있거나, 한 색으로 가득 참.</summary>
         public bool IsResolved => IsEmpty || (IsFull && TopRunLength() == Count);
 
         public ColorId? TopColor => IsEmpty ? (ColorId?)null : _units[_units.Count - 1];
 
-        public Container(int capacity, IEnumerable<ColorId> initialUnitsBottomToTop = null)
+        /// <param name="unlockedCapacity">null이면 capacity와 같다(항상 전부 열려있는
+        /// 일반 병 — 기존 호출부는 전부 이 경우). 병 추가 기능처럼 일부만 열린 채로
+        /// 시작하려면 명시적으로 넘긴다(0 이상 capacity 이하로 clamp됨).</param>
+        public Container(int capacity, IEnumerable<ColorId> initialUnitsBottomToTop = null, int? unlockedCapacity = null)
         {
             if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
             Capacity = capacity;
@@ -35,6 +47,11 @@ namespace ColorSort.Core
                 : new List<ColorId>(capacity);
             if (_units.Count > capacity)
                 throw new ArgumentException("초기 유닛 수가 capacity를 초과합니다.", nameof(initialUnitsBottomToTop));
+            UnlockedCapacity = unlockedCapacity.HasValue
+                ? Math.Clamp(unlockedCapacity.Value, 0, capacity)
+                : capacity;
+            if (_units.Count > UnlockedCapacity)
+                throw new ArgumentException("초기 유닛 수가 unlockedCapacity를 초과합니다.", nameof(initialUnitsBottomToTop));
         }
 
         /// <summary>최상단부터 연속으로 같은 색인 유닛 개수(0개면 비어있음).</summary>
@@ -72,6 +89,17 @@ namespace ColorSort.Core
             for (int i = 0; i < count; i++) PopTop();
         }
 
-        public Container Clone() => new Container(Capacity, _units);
+        /// <summary>UnlockedCapacity를 절대값으로 맞춘다(0~Capacity로 clamp) — 병 추가
+        /// 버튼이 누적으로 몇 칸을 열었는지는 PuzzleSession이 별도로 기억해 두고,
+        /// Undo/Reset으로 Board가 통째로 옛 스냅샷으로 바뀔 때마다 이 메서드로
+        /// 다시 맞춰준다(스냅샷 자체엔 그 시점의 값이 그대로 남아있지만, 그 뒤에
+        /// 더 연 만큼은 스냅샷에 없으므로).</summary>
+        internal void SetUnlockedCapacity(int value) => UnlockedCapacity = Math.Clamp(value, 0, Capacity);
+
+        /// <summary>UnlockedCapacity를 amount만큼 늘린다(Capacity를 넘지 않게 clamp).
+        /// 병 추가 버튼 한 번 = 이 호출 한 번(amount 기본 1).</summary>
+        internal void Unlock(int amount = 1) => SetUnlockedCapacity(UnlockedCapacity + amount);
+
+        public Container Clone() => new Container(Capacity, _units, UnlockedCapacity);
     }
 }
