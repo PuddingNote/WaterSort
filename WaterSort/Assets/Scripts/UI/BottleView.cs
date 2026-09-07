@@ -62,9 +62,6 @@ namespace ColorSort.UI
         // Visual의 회전 축(pivot)의 Y — 바닥에 가까운 축이라야 "따르는" 느낌이 난다.
         private const float VisualPivotY = 0.08f;
 
-        // FillArea가 Visual 가장자리에서 얼마나 안쪽으로 들어와 있는지.
-        private const float FillAreaPadding = 6f;
-
         private readonly List<Segment> _segments = new List<Segment>();
         private readonly Image _highlight;
 
@@ -124,11 +121,63 @@ namespace ColorSort.UI
             }
 
             FillArea = UiFactory.CreatePanel(fillAreaParent, "FillArea", Color.clear);
-            UiFactory.Stretch(FillArea, padding: FillAreaPadding);
+            // 물(세그먼트) 높이는 FillArea.rect.height를 Capacity로 나눈 값을 기준으로
+            // 계산하는데(UnitHeight), Visual과 WaterMaskRoot는 병 그림/마스크 그림을
+            // 각각 독립적으로 자기 RectTransform에 꽉 채워 늘린다 — 이 둘의 원본
+            // 트리밍된 크기가 다르면(예: 병 그림은 목 부분까지 포함해서 트리밍되고,
+            // 마스크는 몸통만 트리밍됨) FillArea가 실제 마스크가 보여주는 영역과
+            // 어긋난다. 물이 얼마 안 찼을 땐 안 보이다가, 병이 거의 다 찼을 때만
+            // 맨 위 물이 마스크에 가려 작아 보이는 버그로 실제로 나타났다(라운드
+            // 300, 8칸/5칸 병). 두 그림이 같은 원본 캔버스 크기라는 전제로, 마스크의
+            // 트리밍된 사각형을 병 그림의 트리밍된 사각형 기준 비율로 환산해서
+            // FillArea 앵커를 맞춘다. 여기에 추가 픽셀 패딩은 더 넣지 않는다(사용자
+            // 확정) — 그 비율 자체가 이미 마스크가 실제로 드러내는 영역과 정확히
+            // 일치하고, 세그먼트끼리는 baseHeight가 이어 붙여 쌓아서 색 간격이
+            // 서로 안 어긋난다(ApplySegmentUnitCount 참고).
+            Rect fillNormalized = ComputeFillAreaNormalizedRect(bottleSprite, maskSprite);
+            FillArea.anchorMin = new Vector2(fillNormalized.xMin, fillNormalized.yMin);
+            FillArea.anchorMax = new Vector2(fillNormalized.xMax, fillNormalized.yMax);
+            FillArea.offsetMin = Vector2.zero;
+            FillArea.offsetMax = Vector2.zero;
 
             _highlight = UiFactory.CreateImage(Root, "Highlight", sprite: null, Color.clear);
             _highlight.raycastTarget = false;
             UiFactory.Stretch((RectTransform)_highlight.transform, padding: -4f);
+        }
+
+        /// <summary>bottleSprite와 maskSprite가 둘 다 있고 같은 크기의 원본 텍스처에서
+        /// 나왔다는 전제 하에, 마스크가 실제로 드러내는 영역이 병 그림 기준 몇 %
+        /// 위치인지(0~1)를 계산한다. <see cref="Sprite.rect"/>는 Unity가 알파 기준으로
+        /// 자동 트리밍한 뒤의 픽셀 사각형이라(각 텍스처 자기 좌표계 기준), 둘 다 원본
+        /// 캔버스 크기가 같으면 그 픽셀 좌표를 그대로 비교해도 된다. 둘 중 하나가
+        /// 없거나 전제가 안 맞으면(원본 크기가 다르면) 그냥 (0,0,1,1) 전체를 돌려줘서
+        /// 예전처럼 동작한다.</summary>
+        private static Rect ComputeFillAreaNormalizedRect(Sprite bottleSprite, Sprite maskSprite)
+        {
+            Rect fallback = new Rect(0f, 0f, 1f, 1f);
+            if (bottleSprite == null || maskSprite == null) return fallback;
+            if (bottleSprite.texture == null || maskSprite.texture == null) return fallback;
+            if (bottleSprite.texture.width != maskSprite.texture.width ||
+                bottleSprite.texture.height != maskSprite.texture.height)
+            {
+                Debug.LogWarning("[BottleView] BottleBackground와 BottleMask의 원본 텍스처 크기가 달라서 " +
+                                  "비율을 맞출 수 없다 — 두 그림을 같은 캔버스 크기로 다시 만들어야 한다. " +
+                                  "지금은 예전처럼 6px 패딩만 적용된다.");
+                return fallback;
+            }
+
+            Rect bottleRect = bottleSprite.rect; // 텍스처 픽셀 좌표(자동 트리밍된 실제 영역).
+            Rect maskRect = maskSprite.rect;
+            if (bottleRect.width <= 0f || bottleRect.height <= 0f) return fallback;
+
+            float xMin = (maskRect.xMin - bottleRect.xMin) / bottleRect.width;
+            float xMax = (maskRect.xMax - bottleRect.xMin) / bottleRect.width;
+            float yMin = (maskRect.yMin - bottleRect.yMin) / bottleRect.height;
+            float yMax = (maskRect.yMax - bottleRect.yMin) / bottleRect.height;
+
+            return Rect.MinMaxRect(
+                Mathf.Clamp01(xMin), Mathf.Clamp01(yMin),
+                Mathf.Clamp01(xMax), Mathf.Clamp01(yMax));
         }
 
         /// <summary>슬롯 1칸의 실제 픽셀 높이 — Count만큼 옮길 때 세그먼트를 얼마나
