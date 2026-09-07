@@ -27,10 +27,22 @@ namespace ColorSort.UI
         private readonly PuzzleSession _session;
         private readonly RectTransform _effectsLayer;
         private readonly AudioSource _audioSource;
-        private readonly List<Coroutine> _active = new List<Coroutine>();
+        private readonly List<ActivePour> _active = new List<ActivePour>();
         private readonly List<GameObject> _activeStreams = new List<GameObject>();
         private readonly Dictionary<GameObject, Image> _streamImages = new Dictionary<GameObject, Image>();
         private readonly HashSet<int> _busySourceIndices = new HashSet<int>();
+
+        /// <summary>진행 중인 붓기 하나를 CancelAll이 "자연 종료와 똑같이" 되돌리는 데
+        /// 필요한 최소 정보. PlayRoutine이 병을 그리드에서 떼어내는 순간 채워 넣는다
+        /// (그 전에 취소되면 비어있는 채로 남는데, 그때는 애초에 되돌릴 것도 없다).</summary>
+        private sealed class ActivePour
+        {
+            public Coroutine Routine;
+            public BottleView Source;
+            public Transform OriginalParent;
+            public int SiblingIndex;
+            public GameObject Spacer;
+        }
 
         public PourAnimator(MonoBehaviour host, PuzzleSession session, RectTransform effectsLayer, AudioSource audioSource)
         {
@@ -56,26 +68,45 @@ namespace ColorSort.UI
         {
             _busySourceIndices.Add(move.FromIndex);
 
-            Coroutine routine = null;
-            routine = _host.StartCoroutine(RunAndUntrack());
-            _active.Add(routine);
+            var entry = new ActivePour { Source = source };
+            entry.Routine = _host.StartCoroutine(RunAndUntrack());
+            _active.Add(entry);
 
             IEnumerator RunAndUntrack()
             {
-                yield return PlayRoutine(move, source, dest);
-                _active.Remove(routine);
+                yield return PlayRoutine(move, source, dest, entry);
+                _active.Remove(entry);
                 _busySourceIndices.Remove(move.FromIndex);
                 if (_active.Count == 0) onComplete?.Invoke();
             }
         }
 
         /// <summary>Undo/Reset 등 즉시 스냅해야 하는 조작 전에 호출 — 진행 중인 연출을
-        /// 전부 끊는다. 물이 어디까지 옮겨졌는지는 뒤이어 호출되는 BottleView.Refresh가
-        /// Board 기준으로 그대로 다시 그려서 정리한다.</summary>
+        /// 전부 끊는다. StopCoroutine은 그 지점 뒤에 있는 "제자리로 복귀" 정리 코드를
+        /// 통째로 건너뛰어서, 그냥 멈추기만 하면 붓던 병이 그리드에서 떨어져 나간 채
+        /// (EffectsLayer에 붙어 자유 앵커·기울어진 각도로) 화면에 고정되어 버린다
+        /// (실제로 겪은 버그 — Undo 도중 캡처한 스크린샷에서 병 하나가 붕 뜬 채 굳어
+        /// 있었음). 그래서 여기서 자연 종료 때와 똑같은 정리(원래 부모/자리로 복귀,
+        /// spacer 제거, 기울기 0)를 직접 해준다. 물이 어디까지 옮겨졌는지는 뒤이어
+        /// 호출되는 BottleView.Refresh가 Board 기준으로 다시 그려서 정리한다.</summary>
         public void CancelAll()
         {
-            foreach (var routine in _active)
-                if (routine != null) _host.StopCoroutine(routine);
+            foreach (var entry in _active)
+            {
+                if (entry.Routine != null) _host.StopCoroutine(entry.Routine);
+
+                if (entry.Spacer != null) UnityEngine.Object.Destroy(entry.Spacer);
+                if (entry.Source != null)
+                {
+                    entry.Source.SetTilt(0f);
+                    if (entry.OriginalParent != null)
+                    {
+                        var root = entry.Source.Root;
+                        root.SetParent(entry.OriginalParent, false);
+                        root.SetSiblingIndex(entry.SiblingIndex);
+                    }
+                }
+            }
             _active.Clear();
 
             foreach (var stream in _activeStreams)
@@ -85,7 +116,7 @@ namespace ColorSort.UI
             _busySourceIndices.Clear(); // StopCoroutine은 RunAndUntrack의 정리 코드를 건너뛰므로 여기서 직접 비움.
         }
 
-        private IEnumerator PlayRoutine(MoveResult move, BottleView source, BottleView dest)
+        private IEnumerator PlayRoutine(MoveResult move, BottleView source, BottleView dest, ActivePour entry)
         {
             var shrink = source.BeginShrinkTop();
             if (shrink == null) yield break; // 방어적 — 규칙상 출발 병은 항상 비어있지 않음.
@@ -104,6 +135,10 @@ namespace ColorSort.UI
             Transform originalParent = root.parent;
             int siblingIndex = root.GetSiblingIndex();
             var spacer = CreateSpacer(originalParent, siblingIndex);
+            // CancelAll이 이 지점부터는 되돌릴 게 생겼다는 걸 알 수 있게 기록해 둔다.
+            entry.OriginalParent = originalParent;
+            entry.SiblingIndex = siblingIndex;
+            entry.Spacer = spacer;
 
             Vector3 startWorldPos = root.position;
             root.SetParent(_effectsLayer, false);
