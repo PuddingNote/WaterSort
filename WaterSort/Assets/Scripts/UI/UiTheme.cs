@@ -12,6 +12,8 @@ namespace ColorSort.UI
         private static TMP_FontAsset _font;
         private static UiSkin _skin;
         private static bool _skinLoadAttempted;
+        private static Sprite _loadingSpinnerSprite;
+        private static bool _loadingSpinnerLoadAttempted;
 
         /// <summary>프로젝트 전체 텍스트가 예외 없이 이 폰트를 쓴다(사용자 지정 고정값).
         /// 프리팹/씬에 미리 꽂아두지 않고 코드에서 로드하는 이유는 이 프로젝트가 UI를
@@ -40,6 +42,24 @@ namespace ColorSort.UI
                     _skinLoadAttempted = true;
                 }
                 return _skin;
+            }
+        }
+
+        /// <summary>로딩 스피너(힌트 계산 중 등)용 단순 원형 그림 — 병/물처럼 소재별로
+        /// 바뀌는 테마 그림이 아니라 Font처럼 항상 쓰는 시스템 UI 요소라 UiSkin이 아니라
+        /// 여기서 직접 로드한다. Resources/Sprites/circle.png가 없으면 null — 호출부가
+        /// Image.Type.Filled(Radial360)에 sprite=null을 써도 기본 사각형 텍스처 위에
+        /// 그대로 동작하니(모양만 원이 아니라 사각형이 됨) 완전히 막히진 않는다.</summary>
+        public static Sprite LoadingSpinnerSprite
+        {
+            get
+            {
+                if (!_loadingSpinnerLoadAttempted)
+                {
+                    _loadingSpinnerSprite = Resources.Load<Sprite>("Sprites/circle");
+                    _loadingSpinnerLoadAttempted = true;
+                }
+                return _loadingSpinnerSprite;
             }
         }
 
@@ -83,6 +103,10 @@ namespace ColorSort.UI
         public const float DialogButtonWidth = 300f;
         public const float DialogButtonHeight = 110f;
         public const float DialogTitleFontSize = 56f;
+
+        // 로딩 스피너(힌트 계산 중 등) 규격.
+        public const float LoadingSpinnerSize = 160f;
+        public const float LoadingSpinnerDegreesPerSecond = 260f;
 
         // 병 하나의 고정 크기 — BottleView와 PourAnimator(붓는 병을 그리드에서 떼어내
         // 자유롭게 옮길 때) 둘 다 같은 값을 써야 해서 상수로 뺐다.

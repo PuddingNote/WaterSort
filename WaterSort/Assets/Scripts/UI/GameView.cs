@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using ColorSort.Core;
 using ColorSort.Solver;
 using UnityEngine;
@@ -34,11 +35,10 @@ namespace ColorSort.UI
         private PourAnimator _pourAnimator;
 
         private int? _selectedIndex;
-        private (int from, int to)? _hintMove;
         private RectTransform _activeDialog;
+        private bool _hintInFlight;
 
         private static readonly Color SelectedHighlight = new Color(0.36f, 0.79f, 0.89f, 0.9f); // UiTheme.PrimaryColor 톤
-        private static readonly Color HintHighlight = new Color(1f, 0.84f, 0.2f, 0.9f); // TODO(sprite): 힌트 강조 색/연출 정식 확정 전 임시
 
         public static GameView Build(Transform parent, int roundId, PuzzleSession session, Callbacks callbacks)
         {
@@ -215,8 +215,6 @@ namespace ColorSort.UI
             // 연달아 쏟아붓는 걸 그대로 허용한다(둘 다 사용자 확정).
             if (_pourAnimator.IsBusy(index)) return;
 
-            _hintMove = null; // 힌트는 다음 조작 전까지만 유효
-
             if (_selectedIndex == null)
             {
                 if (_session.Board.Containers[index].IsEmpty) return; // 빈 병은 출발점이 될 수 없음
@@ -234,7 +232,16 @@ namespace ColorSort.UI
 
             int from = _selectedIndex.Value;
             _selectedIndex = null;
-            var result = _session.TryMove(from, index);
+            PerformMove(from, index);
+        }
+
+        /// <summary>from → to로 실제 이동을 한 번 실행한다 — 병을 두 번 탭해서 고른
+        /// 경우와 힌트 버튼을 눌러 자동으로 실행하는 경우가 둘 다 이 경로를 탄다
+        /// (사용자 확정: 힌트는 이제 하이라이트만 하지 않고 실제로 옮겨준다 — 유저가
+        /// 직접 두 병을 탭했을 때와 완전히 동일하게 처리).</summary>
+        private void PerformMove(int from, int to)
+        {
+            var result = _session.TryMove(from, to);
 
             // 내용물 갱신은 여기서 즉시 하지 않는다 — 성공한 이동은 PourAnimator가
             // 붓기 연출로 서서히 반영하고, 실패한 이동은 애초에 Board가 안 바뀌었으니
@@ -261,7 +268,6 @@ namespace ColorSort.UI
             _pourAnimator.CancelAll(); // 진행 중인 붓기 연출을 끊고 즉시 이전 상태로 스냅.
             _session.TryUndo();
             _selectedIndex = null;
-            _hintMove = null;
             RefreshAllBottles();
         }
 
@@ -270,20 +276,78 @@ namespace ColorSort.UI
             _pourAnimator.CancelAll();
             _session.ResetToInitial();
             _selectedIndex = null;
-            _hintMove = null;
             RefreshAllBottles();
         }
 
-        private void OnHintClicked()
+        /// <summary>힌트는 더 이상 "어디서 어디로 옮기면 되는지" 하이라이트만 보여주지
+        /// 않는다 — 유저가 직접 두 병을 탭했을 때와 완전히 동일하게, 그 이동을 그
+        /// 자리에서 바로 실행한다(사용자 확정).
+        ///
+        /// <see cref="HintSolver.FindNextMove"/>는 상태공간이 큰 보드에서 최대
+        /// 수만~수십만 states를 뒤질 수 있어 메인 스레드에서 그대로 부르면 그
+        /// 계산이 끝날 때까지 프레임이 통째로 멈춘다 — 실제로 겪은 버그: 힌트를
+        /// 누르면 잠깐 렉이 걸린 것처럼 뚝 멈췄다가, 그 멈춘 실제 시간만큼
+        /// Time.deltaTime이 커진 첫 프레임 때문에 붓기 연출의 1단계(들어올리기)가
+        /// 통째로 스킵된 것처럼 중간부터 재생됐다. 그래서 계산을
+        /// <see cref="Task.Run(Action)"/>으로 백그라운드 스레드에 맡기고, 끝나면
+        /// (Unity의 SynchronizationContext 덕분에) 다시 메인 스레드로 돌아와서
+        /// PerformMove를 부른다 — 그동안 메인 스레드/화면은 전혀 안 멈춘다.
+        /// Board를 그대로 넘기지 않고 미리 복제해 두는 이유는, 계산하는 동안
+        /// 유저가 다른 조작으로 실제 Board를 바꿀 수 있어서(입력을 안 막음) —
+        /// 백그라운드 스레드가 그 시점의 스냅샷만 안전하게 들여다보게 한다.
+        ///
+        /// 백그라운드로 옮겨서 렉은 없어졌지만, 계산하는 동안(수백 ms~수 초) 화면이
+        /// 아무 반응 없이 가만히 있으면 유저 입장에선 "버튼이 안 눌렸나?" 싶은
+        /// 빈 시간이 생긴다(실제로 겪은 피드백). 그래서 그동안 <see cref="HintLoadingOverlay"/>로
+        /// 딤 배경 + 회전하는 스피너를 보여준다 — ConfirmDialog와 달리 입력은 막지
+        /// 않는다(사용자 확정: 계산 중에도 다른 병 조작은 계속 가능해야 함).</summary>
+        private async void OnHintClicked()
         {
-            var move = HintSolver.FindNextMove(_session.Board);
+            if (_hintInFlight) return;
+            _hintInFlight = true;
+            RefreshHighlights(); // 힌트 버튼을 계산하는 동안 비활성화된 걸로 보여줌.
+            var loading = HintLoadingOverlay.Show(_canvasRoot);
+
+            Board snapshot = _session.Board.Clone();
+            HintSolver.Move? move;
+            try
+            {
+                move = await Task.Run(() => HintSolver.FindNextMove(snapshot));
+            }
+            finally
+            {
+                _hintInFlight = false;
+                // 힌트 물병이 실제로 움직이기 시작하는(또는 포기하는) 바로 그 타이밍에
+                // 로딩 화면을 치운다(사용자 확정) — 아래 어느 분기로 빠지든 이후로는
+                // 이 오버레이가 더 이상 필요 없다.
+                HintLoadingOverlay.Hide(loading);
+            }
+
+            if (this == null) return; // 계산하는 동안 화면 자체가 없어졌을 수 있음(뒤로가기 등).
+
             if (move == null)
             {
                 Debug.Log("[GameView] 힌트: 다음 수를 못 찾음");
+                RefreshHighlights();
                 return;
             }
-            _hintMove = (move.Value.FromIndex, move.Value.ToIndex);
-            RefreshHighlights(); // 내용물은 안 바뀌었으니 하이라이트만 — 진행 중인 연출을 안 건드림.
+
+            // 계산하는 동안 다른 조작으로 실제 Board가 이미 바뀌었을 수 있다 — 그
+            // 경우 이 힌트는 지금 상태 기준으로 유효하지 않을 수 있지만, PerformMove
+            // 안의 TryMove가 어차피 유효성을 다시 검사해서 무효면 조용히 무시되니
+            // 별도 처리 없이 그대로 시도한다.
+            //
+            // 힌트가 가리키는 출발 병이 마침 다른 이동으로 아직 붓는 중이면(원래
+            // 자리로 안 돌아온 상태) 이번 힌트는 포기한다 — 탭으로 직접 고를 때와
+            // 같은 규칙(OnBottleTapped 맨 위 참고).
+            if (_pourAnimator.IsBusy(move.Value.FromIndex))
+            {
+                RefreshHighlights();
+                return;
+            }
+
+            _selectedIndex = null; // 유저가 이미 뭔가 골라둔 상태였으면 힌트 실행으로 대체.
+            PerformMove(move.Value.FromIndex, move.Value.ToIndex);
         }
 
         private void OnAddContainerClicked()
@@ -312,8 +376,10 @@ namespace ColorSort.UI
             RefreshHighlights();
         }
 
-        /// <summary>선택/힌트 하이라이트와 버튼 활성 상태만 다시 그린다 — 병 내용물은
-        /// 안 건드리므로 다른 병에서 진행 중인 붓기 연출을 방해하지 않는다.</summary>
+        /// <summary>선택 하이라이트와 버튼 활성 상태만 다시 그린다 — 병 내용물은 안
+        /// 건드리므로 다른 병에서 진행 중인 붓기 연출을 방해하지 않는다. 힌트는 더
+        /// 이상 하이라이트를 남기지 않고(OnHintClicked 참고) 그 자리에서 바로
+        /// 이동을 실행하므로 여기서 따로 처리할 게 없다.</summary>
         private void RefreshHighlights()
         {
             for (int i = 0; i < _bottleViews.Count; i++)
@@ -322,15 +388,8 @@ namespace ColorSort.UI
             if (_selectedIndex.HasValue)
                 _bottleViews[_selectedIndex.Value].SetHighlight(SelectedHighlight);
 
-            if (_hintMove.HasValue)
-            {
-                var (from, to) = _hintMove.Value;
-                _bottleViews[from].SetHighlight(HintHighlight);
-                _bottleViews[to].SetHighlight(HintHighlight);
-            }
-
             _undoButton.interactable = _session.CanUndo;
-            _hintButton.interactable = !_session.IsCleared;
+            _hintButton.interactable = !_session.IsCleared && !_hintInFlight; // 계산 중엔 중복 클릭 방지.
         }
 
         private void EvaluateBoardState()

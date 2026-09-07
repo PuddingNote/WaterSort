@@ -232,13 +232,24 @@ namespace ColorSort.UI
             return mouth + Vector3.up * (destHeight * UiTheme.PourHoverHeightRatio);
         }
 
+        // 프레임 하나가 이 값보다 오래 걸렸으면(GC, 무거운 동기 계산 등으로 실제
+        // 렉이 걸렸으면) 그만큼을 그대로 t에 더하지 않고 이 값으로 잘라 쓴다 —
+        // 안 그러면 렉 걸린 그 한 프레임의 Time.deltaTime이 그대로 커져서, 다음
+        // 프레임에 애니메이션 진행률이 한번에 훅 뛰어버려(구간을 통째로 건너뛴
+        // 것처럼) 보인다(실제로 겪은 버그: 힌트 계산이 메인 스레드를 잠깐 막았을
+        // 때 붓기 애니메이션 1단계가 통째로 스킵된 것처럼 재생됨). 힌트 계산 자체는
+        // 백그라운드 스레드로 옮겨서 렉이 안 나게 고쳤지만(GameView.OnHintClicked),
+        // 이 클램프는 그거와 별개로 앞으로 어떤 이유로든 프레임이 오래 걸리는
+        // 상황이 생겨도 최소한 애니메이션이 "스킵"돼 보이진 않게 하는 안전장치다.
+        private const float MaxFrameDelta = 1f / 30f;
+
         private IEnumerator Tween(float duration, Action<float> onUpdate)
         {
             if (duration <= 0f) { onUpdate(1f); yield break; }
             float t = 0f;
             while (t < duration)
             {
-                t += Time.deltaTime;
+                t += Mathf.Min(Time.deltaTime, MaxFrameDelta);
                 onUpdate(Mathf.Clamp01(t / duration));
                 yield return null;
             }
