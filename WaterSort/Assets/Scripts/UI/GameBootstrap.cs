@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using ColorSort.Core;
 using ColorSort.Managers;
 using ColorSort.Solver;
@@ -32,6 +33,7 @@ namespace ColorSort.UI
 
             int roundId = ProgressStore.LoadNextRoundId();
             RectTransform activeScreen = null;
+            bool transitioning = false; // Start 연타 등으로 ShowGame이 겹쳐 들어가는 것을 막음.
 
             void ShowTitle()
             {
@@ -45,31 +47,66 @@ namespace ColorSort.UI
                 activeScreen = (RectTransform)title.transform;
             }
 
-            void ShowGame(int? overrideRoundId = null)
+            // async void — TitleScreen.Callbacks.OnStart(Action<int?>)에 그대로 꽂는
+            // 이벤트 핸들러라 async Task로 안 만든다(GameView.OnHintClicked과 같은 이유:
+            // 예외가 나면 Unity SynchronizationContext를 통해 콘솔에 그대로 로그된다 —
+            // Task를 반환해서 _ = ShowGame(...)처럼 버리면 오히려 예외가 조용히 묻힌다).
+            async void ShowGame(int? overrideRoundId = null)
             {
-                // 에디터 테스트 입력으로 들어온 라운드가 있으면 그걸로 강제 진입
-                // (이후 클리어 진행은 이 번호부터 정상적으로 이어짐 — 저장도 갱신됨).
-                if (overrideRoundId.HasValue) roundId = overrideRoundId.Value;
-
-                if (activeScreen != null) UnityEngine.Object.Destroy(activeScreen.gameObject);
-
-                // 라운드 번호 = 생성 시드. 같은 라운드를 몇 번을 다시 열어도 항상 같은 배치.
-                var roundRng = new System.Random(roundId);
-                var result = RoundBuilder.Build(roundId, WaterPalette.ThemeLimits, roundRng);
-                var session = new PuzzleSession(result.Board);
-
-                var gameView = GameView.Build(canvas.transform, roundId, session, new GameView.Callbacks
+                if (transitioning) return;
+                transitioning = true;
+                try
                 {
-                    OnBack = ShowTitle,
-                    OnSettings = () => Debug.Log("[GameBootstrap] 설정 — 아직 화면 없음"),
-                    OnCleared = () =>
+                    // 에디터 테스트 입력으로 들어온 라운드가 있으면 그걸로 강제 진입
+                    // (이후 클리어 진행은 이 번호부터 정상적으로 이어짐 — 저장도 갱신됨).
+                    if (overrideRoundId.HasValue) roundId = overrideRoundId.Value;
+                    int thisRoundId = roundId;
+
+                    // 라운드 번호 = 생성 시드. 같은 라운드를 몇 번을 다시 열어도 항상 같은 배치.
+                    var roundRng = new System.Random(thisRoundId);
+
+                    // RoundBuilder.Build는 보드를 생성하면서 자체적으로 풀리는지 검증하고,
+                    // 실측 수까지 한 번 더 계산한다 — 라운드가 많이 진행돼서 어려워질수록
+                    // 이 계산이 눈에 띄게 오래 걸릴 수 있다(실제로 겪은 렉: Start를 누르는
+                    // 순간 화면이 잠깐 멈춤). GameView.OnHintClicked과 같은 이유로 메인
+                    // 스레드를 막지 않도록 백그라운드로 옮긴다(RoundBuilder/RoundGenerator/
+                    // HintSolver 전부 UnityEngine 의존이 없는 순수 C#이라 안전).
+                    var buildTask = Task.Run(() => RoundBuilder.Build(thisRoundId, WaterPalette.ThemeLimits, roundRng));
+
+                    // 금방 끝나면(쉬운 라운드 등) 로딩 화면을 아예 안 띄우고, 일정 시간
+                    // 넘도록 안 끝나면 그때 가서 띄운다(사용자 확정) — 그동안 이전 화면
+                    // (타이틀 또는 클리어 직전 게임 화면)은 그대로 보여준 채로 둔다.
+                    RectTransform loading = null;
+                    var winner = await Task.WhenAny(buildTask, Task.Delay(UiTheme.LoadingOverlayShowDelayMs));
+                    if (winner != buildTask)
                     {
-                        roundId++;
-                        ProgressStore.SaveNextRoundId(roundId);
-                        ShowGame();
+                        loading = HintLoadingOverlay.Show(canvas.transform);
+                        await buildTask;
                     }
-                });
-                activeScreen = (RectTransform)gameView.transform;
+                    if (loading != null) HintLoadingOverlay.Hide(loading);
+
+                    var result = buildTask.Result;
+                    var session = new PuzzleSession(result.Board);
+
+                    if (activeScreen != null) UnityEngine.Object.Destroy(activeScreen.gameObject);
+
+                    var gameView = GameView.Build(canvas.transform, thisRoundId, session, new GameView.Callbacks
+                    {
+                        OnBack = ShowTitle,
+                        OnSettings = () => Debug.Log("[GameBootstrap] 설정 — 아직 화면 없음"),
+                        OnCleared = () =>
+                        {
+                            roundId++;
+                            ProgressStore.SaveNextRoundId(roundId);
+                            ShowGame();
+                        }
+                    });
+                    activeScreen = (RectTransform)gameView.transform;
+                }
+                finally
+                {
+                    transitioning = false;
+                }
             }
 
             ShowTitle();

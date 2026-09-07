@@ -108,6 +108,12 @@ namespace ColorSort.UI
         public const float LoadingSpinnerSize = 160f;
         public const float LoadingSpinnerDegreesPerSecond = 260f;
 
+        // 계산이 이 시간(ms) 안에 끝나면 로딩 오버레이를 아예 안 띄운다 — 라운드
+        // 생성처럼 대부분은 순식간에 끝나는 작업에 매번 화면을 깜빡이며 로딩을
+        // 보여주면 오히려 거슬린다(사용자 확정). 계산이 이보다 오래 걸릴 때만
+        // 그제서야 오버레이를 띄운다(GameBootstrap.ShowGame 참고).
+        public const int LoadingOverlayShowDelayMs = 150;
+
         // 병 하나의 고정 크기 — BottleView와 PourAnimator(붓는 병을 그리드에서 떼어내
         // 자유롭게 옮길 때) 둘 다 같은 값을 써야 해서 상수로 뺐다.
         public const float BottleWidth = 120f;
