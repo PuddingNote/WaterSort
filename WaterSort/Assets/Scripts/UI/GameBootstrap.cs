@@ -93,7 +93,6 @@ namespace ColorSort.UI
                     var gameView = GameView.Build(canvas.transform, thisRoundId, session, new GameView.Callbacks
                     {
                         OnBack = ShowTitle,
-                        OnSettings = () => Debug.Log("[GameBootstrap] 설정 — 아직 화면 없음"),
                         OnCleared = () =>
                         {
                             roundId++;

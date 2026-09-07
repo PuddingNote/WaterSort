@@ -20,7 +20,6 @@ namespace ColorSort.UI
         public sealed class Callbacks
         {
             public Action OnBack;
-            public Action OnSettings;
             public Action OnCleared;
         }
 
@@ -107,12 +106,15 @@ namespace ColorSort.UI
             backRect.pivot = new Vector2(0f, 1f);
             backRect.anchoredPosition = new Vector2(UiTheme.ScreenPadding, -UiTheme.ScreenPadding);
 
-            var settings = UiFactory.CreateIconButton(root, UiTheme.Skin?.SettingsIcon, UiTheme.IconButtonSize, UiTheme.PanelColor,
-                () => _callbacks?.OnSettings?.Invoke(), fallbackText: "SETTINGS");
-            var settingsRect = (RectTransform)settings.transform;
-            settingsRect.anchorMin = settingsRect.anchorMax = new Vector2(1f, 1f);
-            settingsRect.pivot = new Vector2(1f, 1f);
-            settingsRect.anchoredPosition = new Vector2(-UiTheme.ScreenPadding, -UiTheme.ScreenPadding);
+            // 게임 플레이 화면에는 설정 버튼을 아예 안 둔다(사용자 확정) — 그 자리를
+            // 그대로 재활용해서 초기화(RESET) 버튼을 놓는다. 기존에 하단 좌측
+            // 그룹에 있던 초기화 버튼은 여기로 옮겨왔으니 그 자리는 없앤다(BuildBottomBar 참고).
+            var reset = UiFactory.CreateIconButton(root, UiTheme.Skin?.ResetIcon, UiTheme.IconButtonSize, UiTheme.PanelColor,
+                OnResetClicked, fallbackText: "RESET");
+            var resetRect = (RectTransform)reset.transform;
+            resetRect.anchorMin = resetRect.anchorMax = new Vector2(1f, 1f);
+            resetRect.pivot = new Vector2(1f, 1f);
+            resetRect.anchoredPosition = new Vector2(-UiTheme.ScreenPadding, -UiTheme.ScreenPadding);
 
             // 폰트 80으로 커진 만큼 상단 코너 버튼(140 높이)과 안 겹치게 박스를 넉넉히 잡음.
             var roundLabel = UiFactory.CreateText(root, $"ROUND {_roundId}", 80f, UiTheme.TextPrimary);
@@ -143,18 +145,22 @@ namespace ColorSort.UI
 
         private void BuildBottomBar(RectTransform root)
         {
-            // 220 -> 310: 아이콘 버튼이 96->140으로 커진 만큼 그룹 폭도 같이 늘림(140*2+16여백).
-            const float groupWidth = 310f;
+            // 버튼 2개 + 사이 여백 16 — 아이콘 버튼 크기(UiTheme.ButtonHeightSmall)가
+            // 바뀌어도 그룹 폭이 자동으로 같이 맞춰지게 상수로 계산해 둔다(하드코딩된
+            // 숫자를 매번 손으로 다시 맞추다 어긋난 적이 있어서, 2026-09-07).
+            const float groupWidth = UiTheme.ButtonHeightSmall * 2f + 16f;
 
+            // 왼쪽 그룹은 이제 버튼이 하나(Undo)뿐이라 두 칸짜리 폭(groupWidth) 대신
+            // 버튼 하나 크기 그대로 잡는다 — 초기화 버튼은 상단바로 옮겨감(BuildTopBar 참고,
+            // 설정 버튼 자리를 재활용, 사용자 확정: 게임 화면에 설정 버튼 자체를 없앰).
             var leftGroup = UiFactory.CreatePanel(root, "LeftButtons", Color.clear);
             leftGroup.anchorMin = leftGroup.anchorMax = new Vector2(0f, 0f);
             leftGroup.pivot = new Vector2(0f, 0f);
-            leftGroup.sizeDelta = new Vector2(groupWidth, UiTheme.ButtonHeightSmall);
+            leftGroup.sizeDelta = new Vector2(UiTheme.ButtonHeightSmall, UiTheme.ButtonHeightSmall);
             leftGroup.anchoredPosition = new Vector2(UiTheme.ScreenPadding, UiTheme.ScreenPadding);
             UiFactory.AddHorizontalLayout(leftGroup, spacing: 16f, forceExpandWidth: false, forceExpandHeight: true);
 
             _undoButton = UiFactory.CreateIconButton(leftGroup, UiTheme.Skin?.UndoIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnUndoClicked, fallbackText: "UNDO");
-            UiFactory.CreateIconButton(leftGroup, UiTheme.Skin?.ResetIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnResetClicked, fallbackText: "RESET");
 
             var rightGroup = UiFactory.CreatePanel(root, "RightButtons", Color.clear);
             rightGroup.anchorMin = rightGroup.anchorMax = new Vector2(1f, 0f);

@@ -44,6 +44,13 @@ namespace ColorSort.UI
         [Header("물 채우기 (9-slice 권장 — 흰색/밝은 회색 바탕으로 만들면 색상별로 자동 틴트됨)")]
         public Sprite WaterFill;
 
+        [Header("로딩 스피너 (힌트 계산 중 등 — 정사각형, 가운데 정렬된 원형 도트 배치 권장)")]
+        [Tooltip("HintLoadingOverlay가 이 그림을 그대로 빙글빙글 회전만 시킨다(따로 애니메이션 " +
+                 "프레임 필요 없음) — 점점 흐려지는 도트처럼 그림 자체에 '잔상' 효과가 이미 " +
+                 "들어있는 디자인이 회전만으로 가장 자연스럽다. 비워두면 예전처럼 기본 원(circle.png)을 " +
+                 "Radial360로 부채꼴 채워서 대신 돌린다.")]
+        public Sprite LoadingSpinner;
+
         [Header("사운드 (선택 — 비워두면 무음 처리)")]
         [Tooltip("물 붓기 사운드. 여러 붓기가 겹치면 항상 이 클립을 재생하는 AudioSource " +
                  "하나를 공유해서, Play()가 자동으로 이전 재생을 끊고 새로 시작한다.")]

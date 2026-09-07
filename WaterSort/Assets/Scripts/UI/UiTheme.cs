@@ -83,7 +83,7 @@ namespace ColorSort.UI
         // 크기(px, 1080 기준 해상도 가정 — CanvasScaler 참고 해상도와 맞춰서 쓴다)
         public const float ButtonWidthLarge = 400f;
         public const float ButtonHeightLarge = 120f;
-        public const float ButtonHeightSmall = 140f; // 96 -> 140: 너무 작다는 피드백 반영
+        public const float ButtonHeightSmall = 140f; // 96 -> 140: 너무 작다는 피드백 반영. 160으로 키웠다가 사용자 요청으로 원복(2026-09-07)
         public const float IconButtonSize = 140f;
         public const float ScreenPadding = 48f;
         public const float PanelSpacing = 24f;

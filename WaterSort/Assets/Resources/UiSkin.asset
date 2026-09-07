@@ -24,4 +24,5 @@ MonoBehaviour:
   BottleBackground: {fileID: 948232866, guid: bf8d8470b963417449ef893caac1c183, type: 3}
   BottleMask: {fileID: 1316251668, guid: eb2d4a21c40b80842b4030893606ed70, type: 3}
   WaterFill: {fileID: 0}
+  LoadingSpinner: {fileID: 1349765751, guid: cb1693d2934224f4bb0220c4e97a805a, type: 3}
   PourSound: {fileID: 0}

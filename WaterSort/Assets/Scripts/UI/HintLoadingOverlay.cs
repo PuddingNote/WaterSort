@@ -24,12 +24,29 @@ namespace ColorSort.UI
             UiFactory.Stretch((RectTransform)dim.transform);
             dim.raycastTarget = false;
 
-            var spinner = UiFactory.CreateImage(root, "Spinner", UiTheme.LoadingSpinnerSprite, Color.white); // 사용자 확정: 틴트 없이 흰색 그대로.
+            // UiSkin.LoadingSpinner(도트가 점점 흐려지는 것처럼 "잔상"이 이미 그림에
+            // 들어있는 디자인)가 있으면 그 그림을 그대로 회전만 시킨다 — 그림 자체가
+            // 이미 회전 방향의 잔상을 표현하고 있어서 추가 효과 없이 회전만으로
+            // 자연스러운 로딩 스피너가 된다. 없으면 예전처럼 기본 원(circle.png)을
+            // Radial360로 부채꼴 채워서 대신 돌린다(둘 다 흰색 틴트 — 사용자 확정).
+            var skinSpinnerSprite = UiTheme.Skin != null ? UiTheme.Skin.LoadingSpinner : null;
+            bool useSkinSpinner = skinSpinnerSprite != null;
+            var spinnerSprite = useSkinSpinner ? skinSpinnerSprite : UiTheme.LoadingSpinnerSprite;
+
+            var spinner = UiFactory.CreateImage(root, "Spinner", spinnerSprite, Color.white);
             spinner.raycastTarget = false;
-            spinner.type = Image.Type.Filled; // CreateImage가 sprite 있으면 기본 Sliced로 두는 걸 덮어씀.
-            spinner.fillMethod = Image.FillMethod.Radial360;
-            spinner.fillClockwise = false;
-            spinner.fillAmount = 0.75f; // 완전히 안 닫힌 원 — 계속 돌면서 "로딩 중" 느낌.
+            if (useSkinSpinner)
+            {
+                spinner.type = Image.Type.Simple; // 이미 완성된 그림 그대로 — 9-slice/부채꼴 채우기 필요 없음.
+                spinner.preserveAspect = true;
+            }
+            else
+            {
+                spinner.type = Image.Type.Filled; // CreateImage가 sprite 있으면 기본 Sliced로 두는 걸 덮어씀.
+                spinner.fillMethod = Image.FillMethod.Radial360;
+                spinner.fillClockwise = false;
+                spinner.fillAmount = 0.75f; // 완전히 안 닫힌 원 — 계속 돌면서 "로딩 중" 느낌.
+            }
 
             var spinnerRect = (RectTransform)spinner.transform;
             spinnerRect.anchorMin = spinnerRect.anchorMax = new Vector2(0.5f, 0.5f);

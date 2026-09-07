@@ -20,13 +20,20 @@
 
 | 파일명 | 용도 |
 |---|---|
-| `circle.png` | 로딩 스피너(힌트 계산 중 등, `HintLoadingOverlay`) — 흰색 원형 실루엣 하나로 충분(`Image.Type.Filled`+`Radial360`으로 코드가 파이 조각처럼 채워서 돌림) |
+| `circle.png` | 로딩 스피너 기본 대체 그림(`UiSkin.Loading Spinner`가 비어 있을 때만 씀) — 흰색 원형 실루엣 하나로 충분(`Image.Type.Filled`+`Radial360`으로 코드가 파이 조각처럼 채워서 돌림) |
+
+로딩 스피너 자체는 `UiSkin.Loading Spinner`에 Inspector로 연결 가능하다
+(2026-09-07) — 도트가 점점 흐려지는 것처럼 "잔상"이 그림 자체에 이미
+들어있는 디자인을 권장한다(정사각형, 도트 배치가 캔버스 가운데 정렬).
+`HintLoadingOverlay`가 그 그림을 그대로 회전만 시켜서(별도 애니메이션 프레임
+불필요) 로딩 중 느낌을 낸다. 비워두면 위 `circle.png` 대체 그림으로 자동
+전환된다.
 
 ## 1. 공통 아이콘 (전 화면에서 재사용)
 
 | 이름 | 용도 | 권장 크기 | 형태 | 우선순위 |
 |---|---|---|---|---|
-| `icon_settings_gear` | 설정 버튼(톱니바퀴) | 64×64 | 단색 실루엣(틴트로 색 입힘) | **높음** — 타이틀/게임 화면 둘 다 필요. `UiSkin.Settings Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
+| `icon_settings_gear` | 설정 버튼(톱니바퀴) | 64×64 | 단색 실루엣(틴트로 색 입힘) | 중간 — 타이틀 화면에서만 씀(게임 플레이 화면엔 설정 버튼 자체가 없음, 2026-09-07 확정). `UiSkin.Settings Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
 | `icon_back_arrow` | 뒤로가기 | 48×48 | 실루엣 | 높음 — `UiSkin.Back Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
 | `icon_close_x` | 팝업 닫기 | 48×48 | 실루엣 | 중간 |
 | `icon_undo` | 실행취소 버튼 | 64×64 | 실루엣(반시계 화살표) | **높음** — `UiSkin.Undo Icon`에 Inspector로 바로 연결 가능(2026-08-25) |
