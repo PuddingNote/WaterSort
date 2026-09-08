@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ColorSort.Core;
+using ColorSort.Managers;
 using ColorSort.Solver;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -77,7 +78,32 @@ namespace ColorSort.UI
 
             _pourAnimator = new PourAnimator(this, _session, effectsLayer, audioSource);
 
+            // 병 추가 버튼을 누르는 순간 바로 뜨도록 라운드 시작 시 미리 로드해 둔다 —
+            // 로드는 비동기라 탭한 뒤에야 요청하면 그 자리에서 못 보여줄 수 있다.
+            // 로드가 늦게 끝나거나(라운드 시작 직후) 한 번 쓴 뒤 다음 걸 다시 로드하는
+            // 동안엔 버튼이 비활성 상태로 멈춰 있는데, 그 상태에서 유저가 아무 것도
+            // 안 건드리면 로드가 끝나도 버튼이 계속 비활성으로 보인다(RefreshHighlights를
+            // 다시 부를 계기가 없어서) — AdReady 이벤트를 구독해서 그 순간 바로 다시
+            // 그려준다. static 이벤트라 OnDestroy에서 반드시 구독 해지해야 한다.
+            RewardedAdService.AdReady += OnRewardedAdReady;
+            RewardedAdService.Preload(AdUnitIds.BonusContainerRewarded);
+
             RebuildBottles();
+        }
+
+        private void OnDestroy()
+        {
+            // RewardedAdService.AdReady는 static 이벤트라 여기서 안 끊으면 이 GameView가
+            // (다음 라운드로 넘어가며) 파괴된 뒤에도 델리게이트가 계속 남아서, 이후
+            // 라운드의 GameView들이 쌓일 때마다 죽은 인스턴스를 계속 부르려 시도하는
+            // 메모리 누수/불필요한 null 체크가 쌓인다.
+            RewardedAdService.AdReady -= OnRewardedAdReady;
+        }
+
+        private void OnRewardedAdReady(string adUnitId)
+        {
+            if (adUnitId != AdUnitIds.BonusContainerRewarded) return;
+            RefreshHighlights(); // 로드가 막 끝난 순간 버튼이 비활성 상태로 멈춰 있지 않게.
         }
 
         private void Update()
@@ -359,21 +385,42 @@ namespace ColorSort.UI
             PerformMove(move.Value.FromIndex, move.Value.ToIndex);
         }
 
-        /// <summary>병 추가(광고 보상) — 매 라운드 마지막 병(RoundBuilder가 항상 붙여 둠)의
-        /// 잠긴 칸을 1칸 연다. 원래 기능은 보상형 광고를 다 봐야 열리지만, 광고 SDK
-        /// 연동 전인 지금은 누르면 바로 적용된다(사용자 확정 — 나중에 광고 시청
-        /// 성공 콜백 안에서 이 메서드를 부르는 걸로 그대로 이어붙일 계획, TODO).
-        /// 내용물이 아니라 "그 병이 얼마나 열려 있는지"만 바뀌는 거라 붓기 연출과는
-        /// 무관 — 애니메이션 진행 중이어도 아무 때나 눌러도 안전하다.</summary>
+        /// <summary>병 추가(광고 보상) — 보상형 광고를 끝까지 봐야 매 라운드 마지막 병
+        /// (RoundBuilder가 항상 붙여 둠)의 잠긴 칸이 1칸 열린다(사용자 확정,
+        /// 2026-09-08 — 그전까지는 누르면 바로 적용되는 임시 동작이었음).
+        /// 광고가 아직 안 떴거나(로드 전) 표시 자체가 실패하면 대체 지급 없이
+        /// 조용히 아무 일도 안 일어난다(GameDesign.md "광고 미시청/로드 실패 시"
+        /// 확정 정책). 내용물이 아니라 "그 병이 얼마나 열려 있는지"만 바뀌는
+        /// 거라 붓기 연출과는 무관 — 애니메이션 진행 중이어도 아무 때나 눌러도
+        /// 안전하다.</summary>
         private void OnAddContainerClicked()
         {
-            if (!_session.TryUnlockBonusContainer()) return;
+            if (!_session.CanUnlockBonusContainer) return;
 
-            int bonusIndex = _session.Board.Containers.Count - 1;
-            var bonus = _session.Board.Containers[bonusIndex];
-            _bottleViews[bonusIndex].SetUnlockedCapacity(bonus.UnlockedCapacity);
+            RewardedAdService.Show(
+                AdUnitIds.BonusContainerRewarded,
+                onRewardEarned: () =>
+                {
+                    if (this == null) return; // 광고 보는 동안 화면 자체가 없어졌을 수 있음(뒤로가기 등).
+                    if (!_session.TryUnlockBonusContainer()) return;
 
-            RefreshHighlights(); // 다 열렸으면 버튼을 비활성화하기 위해.
+                    int bonusIndex = _session.Board.Containers.Count - 1;
+                    var bonus = _session.Board.Containers[bonusIndex];
+                    _bottleViews[bonusIndex].SetUnlockedCapacity(bonus.UnlockedCapacity);
+                    RefreshHighlights();
+                },
+                onClosedWithoutReward: () =>
+                {
+                    Debug.Log("[GameView] 병 추가: 광고를 끝까지 안 봄 — 보상 없음");
+                },
+                onUnavailable: () =>
+                {
+                    Debug.Log("[GameView] 병 추가: 광고가 아직 준비 안 됨");
+                    if (this == null) return;
+                    RefreshHighlights(); // 광고 재로드가 끝날 때까지 버튼을 비활성 상태로 보여줌.
+                });
+
+            RefreshHighlights(); // 광고 표시/재로드 시작 — 그동안 버튼을 비활성화.
         }
 
         private void RequestBackToTitle()
@@ -417,7 +464,10 @@ namespace ColorSort.UI
 
             _undoButton.interactable = _session.CanUndo;
             _hintButton.interactable = !_session.IsCleared && !_hintInFlight; // 계산 중엔 중복 클릭 방지.
-            _addContainerButton.interactable = _session.CanUnlockBonusContainer; // 다 열렸으면 더 못 누르게.
+            // 다 열렸거나(용량 소진) 광고가 아직 준비 안 됐으면 못 누르게 — 광고 로드
+            // 실패/시청 중에도 이 값이 자동으로 false가 돼서 버튼이 비활성화된다.
+            _addContainerButton.interactable = _session.CanUnlockBonusContainer &&
+                RewardedAdService.IsReady(AdUnitIds.BonusContainerRewarded);
         }
 
         private void EvaluateBoardState()

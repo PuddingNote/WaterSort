@@ -759,14 +759,83 @@ Scene 뷰에서 기울어진 병의 `Visual` RectTransform Left/Right 오프셋�
 "같이 움직이지만 보정 대상은 아닌 다른 요소"(여기선 병 그림)를 고정해
 두고, 보정 대상 쪽을 밀어서 간접적으로 반대편이 움직이게 만들어야 한다.
 
+## 병 추가 버튼에 AdMob 보상형 광고 연동 (2026-09-08)
+
+병 추가 버튼이 그동안은 누르면 광고 없이 바로 보상이 적용되는 임시 동작이었는데
+(GameDesign.md에 이미 확정돼 있던 "부분 완성 병 즉시 사용 가능"/"Undo·Reset과
+무관하게 유지" 정책은 이 시점에 이미 구현돼 있었음), 이제 실제 Google AdMob
+보상형 광고로 이어붙였다.
+
+**중요한 제약 — SDK 설치는 이 세션이 직접 못 한다**: Google Mobile Ads Unity
+Plugin은 Unity 패키지 매니저로 설치되는 패키지가 아니라, `.unitypackage`를
+GitHub 릴리스에서 받아 에디터에서 직접 Import Package로 넣어야 하는 절차라
+(+ External Dependency Manager로 네이티브 안드로이드 의존성까지 별도로
+resolve해야 함) 파일만 편집하는 방식으로는 설치할 수 없다. 그래서:
+- 실제 `GoogleMobileAds.Api` 사용 코드는 전부 `#if ADS_ENABLED`로 감싸서,
+  SDK가 없어도(즉 지금 당장도) 프로젝트 전체 컴파일이 절대 안 깨지게 했다
+  — `ADS_ENABLED`가 꺼져 있으면(기본값) `RewardedAdService`는 항상
+  "광고 없음"으로만 동작해서, 병 추가 버튼이 계속 비활성화된 채로 있는
+  게 정상이다. 이게 우연히도 이미 확정돼 있던 "광고 로드 실패 시 그
+  자리에서 비활성화" 정책과 완전히 같은 코드 경로다.
+- 사용자가 직접 해야 하는 설치 단계 4개(`RewardedAdService.cs` 상단
+  doc 주석에도 그대로 적어 둠):
+  1. https://github.com/googleads/googleads-mobile-unity/releases 에서
+     최신 `GoogleMobileAdsPlugin.unitypackage`를 받아 Assets > Import
+     Package > Custom Package로 임포트(딸려오는 External Dependency
+     Manager 포함).
+  2. Assets > External Dependency Manager > Android Resolver > Resolve
+     실행(네이티브 안드로이드 의존성).
+  3. Assets > Google Mobile Ads > Settings에서 App ID에
+     `ca-app-pub-6387288948977074~1221971886` 입력 후 저장(빌드 시점에
+     AndroidManifest에 자동으로 채워 넣어짐 — 손으로 매니페스트 건드릴
+     필요 없음).
+  4. Player Settings > Other Settings > Scripting Define Symbols(Android
+     탭)에 `ADS_ENABLED` 추가.
+  이 네 단계가 끝나야 실제 광고가 뜬다. 참고로 실제 광고 단위 ID
+  (`ca-app-pub-6387288948977074/3903975543`, `AdUnitIds.BonusContainerRewarded`)를
+  그대로 넣었는데, 테스트 중엔 AdMob이 무효 트래픽으로 판단해 계정에
+  불이익을 줄 수 있으니 개발 중엔 자기 기기를 테스트 기기로 등록하거나
+  당분간 Google 공식 테스트 광고 단위 ID로 바꿔서 확인해 보는 걸 권장한다
+  (실제 배포 직전에 다시 이 ID로 돌리면 됨).
+
+**구조**: `ColorSort.Managers`(광고/재화 담당으로 애초에 마련해 둔 asmdef)에
+두 파일을 새로 뒀다.
+- `AdUnitIds.cs` — 실제 광고 단위 ID 상수 모음. 지금은 병 추가용 하나뿐이고,
+  나중에 힌트 등 다른 버튼에 광고를 붙이게 되면 여기 상수만 추가하면 된다.
+- `RewardedAdService.cs` — adUnitId를 인자로 받는 범용 서비스(`IsReady`/
+  `Preload`/`Show`). 병 추가 전용으로 짜지 않고 재사용 가능하게 만들었다
+  — "나머지 버튼은 나중에" 요청이 이미 예고돼 있었기 때문.
+
+**흐름**: `GameView.Initialize`가 라운드 시작 시 `Preload`를 미리 불러서
+버튼을 누르는 순간 바로 뜨게 해 둔다(로드는 비동기라 탭한 뒤에야 요청하면
+그 자리에서 못 보여줄 수 있음). `OnAddContainerClicked`는 이제
+`RewardedAdService.Show`를 부르고, **광고를 끝까지 다 봐야만**
+`onRewardEarned` 콜백 안에서 `TryUnlockBonusContainer`를 부른다 — 중간에
+닫으면(`onClosedWithoutReward`) 조용히 아무 일도 안 하고, 광고가 아직
+준비 안 됐으면(`onUnavailable`) 역시 대체 지급 없이 무시한다(2026-08-25에
+이미 확정된 정책). 광고를 한 번 쓰면(성공/실패 무관) `RewardedAdService`가
+내부적으로 다음 광고를 자동으로 다시 로드해 둔다.
+
+**버튼 비활성화 타이밍 문제와 `AdReady` 이벤트**: `_addContainerButton.interactable`은
+이제 "잠긴 칸이 남아 있는지"뿐 아니라 "광고가 지금 당장 준비됐는지"도
+같이 본다. 문제는 광고 로드가 비동기라, 로드가 막 끝나는 그 순간엔 아무도
+`RefreshHighlights()`를 다시 안 불러서 버튼이 몇 초간 비활성 상태로 멈춰
+있는 것처럼 보일 수 있었다 — `RewardedAdService`에 `AdReady`
+static 이벤트를 추가하고 `GameView`가 구독해서, 로드가 끝나는 즉시
+`RefreshHighlights()`를 다시 부르도록 했다. static 이벤트라 `GameView.OnDestroy`에서
+반드시 구독 해지해야 한다(안 그러면 라운드가 바뀔 때마다 죽은
+GameView 인스턴스를 계속 참조하는 델리게이트가 쌓임) — 새로 추가한
+`OnDestroy`가 이 해지만 담당한다(이 프로젝트에서 `GameView`가 `OnDestroy`를
+쓰는 첫 사례).
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접
   플레이하며 계속 조정 중이다 — 지금까지의 실측은 전부 "솔버 기준 실제로
   풀리는가/몇 수인가"이지 사람의 체감 난이도가 아니다.
-- 광고 SDK 선택(AdMob vs 대안), 강제 업데이트/개인정보처리방침용 허브 저장소
-  (`{계정}.github.io`) 준비 시점은 아직 안 다뤘다 — 필요해지는 시점(광고를 넣기로
-  정하는 시점)에 `캐주얼_게임_재사용_시스템_모음.md` 2장 / `개인정보처리방침_재사용_가이드.md`를
-  다시 참고해 진행한다.
-- 병 추가/힌트 기능은 정책만 확정됐고 실제 광고·재화 연동 구현은 아직이다
-  (`GameView.OnAddContainerClicked` 참고).
+- 강제 업데이트/개인정보처리방침용 허브 저장소(`{계정}.github.io`) 준비
+  시점은 아직 안 다뤘다 — 필요해지는 시점에 `개인정보처리방침_재사용_가이드.md`를
+  다시 참고해 진행한다. 광고 SDK는 AdMob으로 확정됐다(아래 항목 참고).
+- 힌트 버튼의 광고 연동은 아직이다 — 병 추가 쪽에서 만들어 둔
+  `RewardedAdService`/`AdUnitIds`를 그대로 재사용할 수 있다(사용자가
+  "나머지는 나중에 요청하겠다"고 확정, 2026-09-08).
