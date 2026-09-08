@@ -119,6 +119,7 @@ namespace ColorSort.UI
                 if (entry.Source != null)
                 {
                     entry.Source.SetTilt(0f);
+                    entry.Source.SetWaterHorizontalOffset(0f); // 기울기와 짝을 이루는 보정값도 같이 원상복구.
                     if (entry.OriginalParent != null)
                     {
                         var root = entry.Source.Root;
@@ -185,6 +186,16 @@ namespace ColorSort.UI
             root.position = startWorldPos; // 화면상 위치는 그대로 유지한 채로 부모만 교체.
 
             float fullAngle = sign * UiTheme.PourTiltAngleDeg;
+            // BottleMask/BottleBackground 윗부분이 살짝 어긋나 있어서, 기울어진 동안
+            // 물 쪽(_waterVisual)을 이만큼 옆으로 밀어야 병 그림이 스파웃 위치에
+            // 자연스럽게 맞아 보인다(사용자 확정치, UiTheme.PourVisualHorizontalNudge
+            // 참고). 부호가 sign의 반대인 이유: 이 값은 물 쪽에 주는 오프셋이고,
+            // 실제로 화면에서 "병 그림이 이만큼 움직여 보이는" 방향은 아래 델타 보정
+            // (hoverRootTarget 계산)이 이 오프셋을 상쇄하면서 반대 방향으로 밀어내는
+            // 결과이기 때문이다(BottleView.SetWaterHorizontalOffset 주석 참고) — 그래서
+            // sign과 반대 부호를 써야 사용자가 원한 방향("오른쪽으로 기울 때 이 값,
+            // 왼쪽으로 기울 때 반대")이 실제로 나온다.
+            float fullNudge = -sign * UiTheme.PourVisualHorizontalNudge;
 
             // 스파웃(입구의 처지는 쪽 모서리)이 도착 병 바로 위, 도착 병과 같은 X에
             // 오도록 목표 Root 위치를 미리 한 번만 정확히 구한다 — 그래야 다 기울었을
@@ -192,20 +203,25 @@ namespace ColorSort.UI
             // 유도해서 미리 계산하는 방식은 오차가 나기 쉬웠다(실제로 겪음) — 대신
             // "일단 그 각도로 놓고 스파웃이 실제로 어디 있는지 측정해서, 목표와의
             // 차이만큼 그대로 옮기면 된다"는 방식을 쓴다. 병진이동은 회전과 무관하게
-            // 그대로 더해지므로 이 보정은 근사가 아니라 항상 정확하다. 측정하는 동안
-            // 잠깐 각도를 바꿨다가 같은 프레임 안에서 0으로 되돌리므로 화면엔 전혀
+            // 그대로 더해지므로 이 보정은 근사가 아니라 항상 정확하다 — 위 가로 보정
+            // (fullNudge)도 측정 시점에 이미 적용해 둬야, 측정된 스파웃 위치 자체가
+            // 보정 반영된 값이라 나머지 계산이 그대로 맞아떨어진다. 측정하는 동안
+            // 잠깐 각도/보정을 바꿨다가 같은 프레임 안에서 원상복구하므로 화면엔 전혀
             // 안 보인다.
             Vector3 hoverSpoutTarget = HoverSpoutTarget(dest);
             source.SetTilt(fullAngle);
+            source.SetWaterHorizontalOffset(fullNudge);
             Vector3 measuredSpoutAtFullTilt = SpoutWorldPosition(source); // 이때 root.position은 아직 startWorldPos.
             Vector3 hoverRootTarget = startWorldPos + (hoverSpoutTarget - measuredSpoutAtFullTilt);
             source.SetTilt(0f); // phase 1이 각도 0에서 시작해야 하므로 원상복구.
+            source.SetWaterHorizontalOffset(0f);
 
             // 1) 들어올려서 목표 병 위로 이동 + 기울이기 시작.
             yield return Tween(UiTheme.PourLiftTime, p =>
             {
                 float e = Ease(p);
                 source.SetTilt(fullAngle * e);
+                source.SetWaterHorizontalOffset(fullNudge * e);
                 root.position = Vector3.Lerp(startWorldPos, hoverRootTarget, e);
             });
 
@@ -227,9 +243,11 @@ namespace ColorSort.UI
             {
                 float e = Ease(p);
                 source.SetTilt(fullAngle * (1f - e));
+                source.SetWaterHorizontalOffset(fullNudge * (1f - e));
                 root.position = Vector3.Lerp(hoverRootTarget, startWorldPos, e);
             });
             source.SetTilt(0f);
+            source.SetWaterHorizontalOffset(0f);
             root.position = startWorldPos; // 부동소수 오차 없이 정확히 원위치로 스냅.
 
             // 원래 자리로 복귀 — childControlWidth/Height=true인 레이아웃 그룹이라

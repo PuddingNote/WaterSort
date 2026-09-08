@@ -42,6 +42,12 @@ namespace ColorSort.UI
         /// (매 라운드 딱 하나뿐인 보너스 병만 해당).</summary>
         private RectTransform _lockedClip;
 
+        /// <summary>물+마스크 전용 회전 축 — BottleMask가 있을 때만 만들어진다(null이면
+        /// 없음). Visual(병 그림)의 형제로 따로 둬서, 같은 각도로 같이 기울되(SetTilt),
+        /// 좌우 위치는 Visual과 독립적으로 조금씩 밀 수 있게(SetWaterHorizontalOffset)
+        /// 했다 — 왜 굳이 분리했는지는 그 메서드 주석 참고.</summary>
+        private RectTransform _waterVisual;
+
         // internal(private 아님) — C#의 private는 "중첩 타입 자신 + 그 안에 또
         // 중첩된 타입"까지만 보이고 바깥 클래스(BottleView 본체)로는 안 넓어진다
         // (반대 방향, 즉 바깥의 private 멤버가 중첩 타입에서 보이는 것만 성립).
@@ -151,8 +157,18 @@ namespace ColorSort.UI
             Transform fillAreaParent = Visual;
             if (maskSprite != null)
             {
-                var maskRoot = UiFactory.CreatePanel(Visual, "WaterMaskRoot", Color.white);
+                // Visual의 자식이 아니라 형제(Root 밑)로 둔다 — BottleMask와
+                // BottleBackground 그림 윗부분(입구 쪽 모서리)이 살짝 어긋나 있어서,
+                // 나중에 붓는 동안 이 병(물+마스크)만 병 그림과 독립적으로 살짝 밀어야
+                // 하는데(SetWaterHorizontalOffset 참고), Visual의 자식으로 두면 그
+                // 보정이 항상 물병 전체를 같이 옮기는 꼴이 돼서 아무 시각적 효과가
+                // 없다(실제로 겪은 버그 — PourAnimator의 "측정 후 델타 보정" 로직이
+                // Visual 전체에 준 오프셋을 그대로 상쇄해버림). 회전(pivot 포함)은
+                // Visual과 완전히 똑같이 맞춰서, 보정이 0일 땐 예전과 시각적으로
+                // 동일하게 보이게 한다.
+                var maskRoot = UiFactory.CreatePanel(Root, "WaterMaskRoot", Color.white);
                 UiFactory.Stretch(maskRoot);
+                maskRoot.pivot = new Vector2(0.5f, VisualPivotY); // Visual과 같은 회전 축.
                 var maskRootImage = maskRoot.GetComponent<Image>();
                 maskRootImage.sprite = maskSprite;
                 maskRootImage.type = Image.Type.Sliced;
@@ -162,6 +178,7 @@ namespace ColorSort.UI
                 mask.showMaskGraphic = false; // 마스크 그림 자체는 안 보이고 클리핑 역할만.
 
                 fillAreaParent = maskRoot;
+                _waterVisual = maskRoot;
             }
 
             FillArea = UiFactory.CreatePanel(fillAreaParent, "FillArea", Color.clear);
@@ -245,8 +262,37 @@ namespace ColorSort.UI
             _lockedClip.offsetMin = _lockedClip.offsetMax = Vector2.zero;
         }
 
-        /// <summary>기울기(도). 0 = 똑바로 선 상태. 붓는 병(출발 병)에만 호출한다.</summary>
-        public void SetTilt(float degrees) => Visual.localEulerAngles = new Vector3(0f, 0f, degrees);
+        /// <summary>기울기(도). 0 = 똑바로 선 상태. 붓는 병(출발 병)에만 호출한다.
+        /// Visual(병 그림)과 _waterVisual(물+마스크, 있으면)을 항상 같은 각도로
+        /// 같이 돌려서 하나의 병처럼 보이게 한다.</summary>
+        public void SetTilt(float degrees)
+        {
+            var rotation = new Vector3(0f, 0f, degrees);
+            Visual.localEulerAngles = rotation;
+            if (_waterVisual != null) _waterVisual.localEulerAngles = rotation;
+        }
+
+        /// <summary>물+마스크(_waterVisual)만 좌우로 살짝 밀어서 BottleMask와
+        /// BottleBackground 그림 윗부분(입구 쪽 모서리)의 미세한 어긋남을 보정한다 —
+        /// 붓는 병이 기울어져 있는 동안에만 쓴다(SetTilt와 짝을 이뤄서 같이
+        /// 애니메이션). BottleMask가 없으면(_waterVisual이 null) 조용히 무시한다.
+        ///
+        /// 반드시 병 그림(Visual)이 아니라 물 쪽(_waterVisual)을 밀어야 한다 — 이
+        /// 병의 물줄기 시작점(PourAnimator.SpoutWorldPosition)은 FillArea(물 쪽
+        /// 자손)의 좌표로 계산되고, PourAnimator는 "그 지점이 목표 위치에 오도록"
+        /// 병 전체(Root)의 위치를 매번 역산해서 맞춘다. Visual을 밀면 물 쪽도
+        /// 같이 딸려 밀리는 셈이라(둘 다 같은 Visual 밑에 있던 예전 구조) 그
+        /// 역산이 이동분을 고스란히 되돌려 버려서 화면상 아무 변화가 없었다
+        /// (실제로 겪은 버그 — 사용자가 Scene 뷰에서 확인한 보정값을 그대로
+        /// 코드에 넣었는데 아무 효과가 없었음). 물 쪽만 따로 밀면 그 역산이
+        /// "물 위치는 그대로, 병 전체(=병 그림)가 반대 방향으로 옮겨지는" 결과를
+        /// 만들어서 실제로 병 그림이 시각적으로 움직인다.</summary>
+        public void SetWaterHorizontalOffset(float pixels)
+        {
+            if (_waterVisual == null) return;
+            _waterVisual.offsetMin = new Vector2(pixels, _waterVisual.offsetMin.y);
+            _waterVisual.offsetMax = new Vector2(pixels, _waterVisual.offsetMax.y);
+        }
 
         /// <summary>애니메이션 없이 컨테이너 내용을 즉시 반영 — 초기 배치, undo/reset,
         /// 그리고 붓기 애니메이션이 끝난 뒤 최종 스냅에 쓴다.</summary>
