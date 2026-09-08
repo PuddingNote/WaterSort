@@ -47,11 +47,20 @@ namespace ColorSort.UI
                 activeScreen = (RectTransform)title.transform;
             }
 
-            // async void — TitleScreen.Callbacks.OnStart(Action<int?>)에 그대로 꽂는
-            // 이벤트 핸들러라 async Task로 안 만든다(GameView.OnHintClicked과 같은 이유:
+            // TitleScreen.Callbacks.OnStart(Action<int?>)에 그대로 꽂는 이벤트
+            // 핸들러라 async Task로 안 만든다(GameView.OnHintClicked과 같은 이유:
             // 예외가 나면 Unity SynchronizationContext를 통해 콘솔에 그대로 로그된다 —
             // Task를 반환해서 _ = ShowGame(...)처럼 버리면 오히려 예외가 조용히 묻힌다).
+            // 실제 작업은 ShowGameAsync로 빼서, PlayStageClearThenAdvance가 "다음
+            // 라운드가 다 준비될 때까지" 기다렸다가 그다음에 페이드아웃을 시작할 수
+            // 있게 했다(await 가능해야 함).
             async void ShowGame(int? overrideRoundId = null)
+            {
+                try { await ShowGameAsync(overrideRoundId); }
+                catch (System.Exception e) { Debug.LogException(e); }
+            }
+
+            async Task ShowGameAsync(int? overrideRoundId = null)
             {
                 if (transitioning) return;
                 transitioning = true;
@@ -75,7 +84,13 @@ namespace ColorSort.UI
 
                     // 금방 끝나면(쉬운 라운드 등) 로딩 화면을 아예 안 띄우고, 일정 시간
                     // 넘도록 안 끝나면 그때 가서 띄운다(사용자 확정) — 그동안 이전 화면
-                    // (타이틀 또는 클리어 직전 게임 화면)은 그대로 보여준 채로 둔다.
+                    // (타이틀 또는 클리어 직전 게임 화면)은 그대로 보여준 채로 둔다. 라운드
+                    // 클리어 직후 진입할 땐 이미 StageClearOverlay가 "STAGE CLEAR" 텍스트를
+                    // 100% 불투명하게 띄우고 있는 유지 구간(PlayStageClearThenAdvance 참고)
+                    // 중이라 이 로딩 스피너가 뜨더라도 거의 안 보인다(단, 배경 자체는 딤
+                    // 다이얼로그 수준의 반투명이라 화면 가장자리 쪽은 이론적으로 살짝
+                    // 비쳐 보일 수 있음 — 실제로 라운드 생성이 이 정도로 느려진 적은
+                    // 없어서 지금은 방어만 해두고 넘어간다).
                     RectTransform loading = null;
                     var winner = await Task.WhenAny(buildTask, Task.Delay(UiTheme.LoadingOverlayShowDelayMs));
                     if (winner != buildTask)
@@ -93,18 +108,37 @@ namespace ColorSort.UI
                     var gameView = GameView.Build(canvas.transform, thisRoundId, session, new GameView.Callbacks
                     {
                         OnBack = ShowTitle,
-                        OnCleared = () =>
-                        {
-                            roundId++;
-                            ProgressStore.SaveNextRoundId(roundId);
-                            ShowGame();
-                        }
+                        OnCleared = () => PlayStageClearThenAdvance()
                     });
                     activeScreen = (RectTransform)gameView.transform;
                 }
                 finally
                 {
                     transitioning = false;
+                }
+            }
+
+            // 라운드 클리어 → "STAGE CLEAR" 연출(약 3초, 3구간 — UiTheme/StageClearOverlay
+            // 참고) → 다음 라운드로 자동 진행. 실제 화면 교체(ShowGameAsync, 이미 다
+            // 만들어진 뒤에 이전 화면과 교체하므로 화면이 비어 보이는 틈이 없음)는
+            // 2구간(유지) 동안 콜백으로 실행된다.
+            async void PlayStageClearThenAdvance()
+            {
+                roundId++;
+                ProgressStore.SaveNextRoundId(roundId);
+
+                var overlay = StageClearOverlay.Show(canvas.transform);
+                try
+                {
+                    await StageClearOverlay.Play(overlay, () => ShowGameAsync());
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogException(e);
+                }
+                finally
+                {
+                    StageClearOverlay.Hide(overlay);
                 }
             }
 

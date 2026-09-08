@@ -828,6 +828,95 @@ GameView 인스턴스를 계속 참조하는 델리게이트가 쌓임) — 새�
 `OnDestroy`가 이 해지만 담당한다(이 프로젝트에서 `GameView`가 `OnDestroy`를
 쓰는 첫 사례).
 
+## 라운드 클리어 → "STAGE CLEAR" 연출 → 다음 라운드 자동 진행 (2026-09-08, 재확정)
+
+그동안은 라운드가 클리어되면(`GameView.EvaluateBoardState`가 `IsCleared`
+감지) `GameBootstrap`이 아무 연출 없이 바로 다음 라운드를 만들어 화면을
+바꿔치기했다. 첫 구현(검은 배경 + 텍스트를 CanvasGroup 하나로 묶어 2초)을
+보여줬더니 "이 느낌이 아니다"는 피드백을 받아 같은 날 다시 정확한 타임라인을
+받아 재구현했다:
+- **0~1초(페이드인)**: 텍스트 0%→100% 불투명, 배경(딤)도 함께 0→목표
+  알파로 등장.
+- **1~2초(유지)**: 텍스트/배경 그대로 유지한 채 뒤에서 실제 라운드 전환
+  실행(다음 라운드 생성 + 화면 교체).
+- **2~3초(페이드아웃)**: 텍스트 100%→0%. 배경은 텍스트 알파가 자기 목표치
+  보다 높은 동안은 고정돼 있다가, 텍스트 알파가 그 밑으로 내려오는 순간부터
+  텍스트와 정확히 같은 값을 취하며 함께 0까지 내려간다("모든 화면이
+  자연스럽게 투명해지는 것처럼" — 사용자 확정).
+
+총 약 3초(2구간이 라운드 생성 속도에 따라 길어질 수 있어 "약").
+
+**배경색은 뒤로가기 확인 다이얼로그와 동일한 `UiTheme.DimBackground`**
+(0A0A1A, 목표 알파 166/255)로 바꿨다 — 첫 구현은 완전한 검정을 썼는데,
+사용자가 "다이얼로그 배경과 동일한 색으로" 요청해서 새 색을 만들지 않고
+기존 상수를 그대로 재사용했다.
+
+**배경/텍스트를 더 이상 하나의 `CanvasGroup`으로 묶지 않는다**: 페이드아웃
+구간에서 배경과 텍스트가 서로 다른 곡선(배경은 한동안 고정, 텍스트만 먼저
+내려가다가 특정 지점부터 같이 내려감)을 그려야 해서, `StageClearOverlay`가
+`Image`(배경)와 `TMP_Text`(텍스트)의 알파를 매 프레임 각각 계산해서 직접
+설정한다(`Play()` 안의 `Mathf.Min(bgTarget, textAlpha)` 한 줄이 페이드아웃의
+핵심 — bgTarget보다 큰 동안은 그대로 bgTarget, 작아지면 그 값을 그대로
+따라간다). 입력 차단(`blocksRaycasts = true`)은 시각적 페이드와 무관하게
+항상 켜져 있어야 해서 별도의 `CanvasGroup`(alpha 항상 1)을 Root에 하나 더
+둬서 분리했다. 다른 오버레이(Toast/HintLoadingOverlay)와 다르게 입력을
+막는 이유는 그대로다 — 유저가 끼어들 이유가 없는 완전 자동 전환이라, 그
+사이에 곧 사라질 GameView를 조작(특히 Undo/Reset)해서 생기는 경합을 막기
+위해서.
+
+**"STAGE CLEAR"가 두 줄로 꺾이던 문제**: `FontSizeTitle`(140)을 그대로
+쓰다 보니 900px 박스 안에서 줄바꿈됐다. 전용 `FontSizeStageClear`(110)로
+낮추고, `TMP_Text.enableWordWrapping = false`를 명시적으로 꺼서 박스보다
+넓어져도 절대 줄바꿈되지 않게 했다(마스크가 없는 텍스트라 넘쳐도 잘리지
+않고 그냥 좌우로 더 넓게 그려질 뿐).
+
+**`StageClearOverlay.Play(Handle, Func<Task> onHoldPhase)`**가 위 3구간
+전체를 캡슐화한다 — `Show`/`Hide`로 만들고 없애는 것만 호출부(`GameBootstrap`)
+책임이고, 타이밍 시퀀스 자체는 이제 이 클래스 안에 있다(이전 버전은
+`GameBootstrap`이 `FadeTo`를 세 번 나눠 불렀는데, 배경/텍스트 알파를
+따로 계산해야 해지면서 그 조립 로직 자체를 오버레이 클래스로 옮기는 게
+더 자연스러웠다).
+
+**버그: 전환되는 순간 연출이 뚝 끊겨 사라짐(2026-09-08, 사용자가 영상으로
+제보)**. 원인: `onHoldPhase`(=`ShowGameAsync`)가 새 `GameView`를 만들 때
+`canvas.transform`의 **맨 마지막 자식**으로 붙는 게 Unity의 기본 동작인데,
+`StageClearOverlay`는 `Show()` 시점에 한 번만 `SetAsLastSibling()`을
+불렀을 뿐이었다 — 그래서 전환되는 그 프레임에 새 GameView가 오버레이보다
+위(=화면상 더 앞)로 올라가면서, "STAGE CLEAR"가 유지·페이드아웃 구간 내내
+남아있어야 하는데 전환 순간 화면 뒤로 가려져 뚝 끊긴 것처럼 사라졌다.
+**수정**: `Play()`의 2구간에서 `onHoldPhase`를 감싼 `RunHoldPhase`가 전환이
+끝나는 즉시(=await 완료 직후) `overlay.Root.SetAsLastSibling()`을 다시 불러
+오버레이를 최상단으로 되돌린다 — 이후 남은 유지 시간과 페이드아웃 내내
+항상 최상단에 남는다.
+
+**`GameBootstrap` 리팩터링**(이전 구현에서 그대로 유지): 기존
+`ShowGame`(async void, `TitleScreen`의 Start 버튼에 그대로 꽂히는
+델리게이트)의 실제 작업을 `ShowGameAsync`(async Task)로 빼고, `ShowGame`은
+그걸 부르고 예외만 로그하는 얇은 래퍼로 남겼다 — `PlayStageClearThenAdvance`가
+"다음 라운드가 다 준비될 때까지" `await`할 수 있어야 했기 때문(순수
+`async void`는 기다릴 수 없음). `PlayStageClearThenAdvance`(async void,
+`GameView.Callbacks.OnCleared`에 연결)는 라운드 번호 증가/저장 → 오버레이
+표시 → `StageClearOverlay.Play(overlay, () => ShowGameAsync())` 대기 →
+오버레이 제거 순서로 처리한다. `ShowGameAsync`는 `Play`의 2구간(유지) 동안
+콜백으로 실행되고, `Task.WhenAll(전환 작업, Task.Delay(유지 시간))`으로
+묶여 있어서 전환이 유지 시간보다 오래 걸리면(드문 경우) 유지 구간만 자연히
+늘어난다.
+
+`ShowGameAsync`는 라운드 생성이 오래 걸리면(어려운 라운드) 자체적으로
+`HintLoadingOverlay`를 띄우는데(기존 기능), 클리어 직후 진입할 땐 이미
+`StageClearOverlay`가 "STAGE CLEAR" 텍스트를 100% 불투명하게 띄운 유지
+구간 중이라 이 스피너가 뜨더라도 화면 중앙 쪽은 거의 안 보인다. 다만 이번엔
+배경 자체가 완전한 검정이 아니라 딤 다이얼로그 수준의 반투명(166/255)이라,
+화면 가장자리처럼 텍스트가 덮지 않는 영역에서는 스피너가 이론적으로 살짝
+비쳐 보일 수 있다 — 실제로 라운드 생성이 이 정도로 느려진 적은 없어서
+지금은 방어만 해두고 넘어간다(첫 구현 때 남겨둔 한계와 동일한 결론).
+
+**알려진 한계**: `blocksRaycasts`로 UI 클릭은 막았지만, 안드로이드
+뒤로가기(Escape 키)는 `GameView.Update()`가 레이캐스트와 무관하게 직접
+폴링하는 구조라 이 ~3초 전환 도중에도 여전히 반응한다 — 눌리면 "타이틀로
+돌아갈까요?" 확인창이 뜬다. 실제로 이 짧은 자동 전환 도중에 뒤로가기를
+누르는 경우는 거의 없을 거라 보고 지금은 막지 않았다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접

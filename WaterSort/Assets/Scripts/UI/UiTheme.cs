@@ -154,5 +154,22 @@ namespace ColorSort.UI
         public const float ToastInDuration = 0.35f;
         public const float ToastHoldDuration = 1.1f;
         public const float ToastOutDuration = 0.4f;
+
+        // 라운드 클리어 시 화면을 덮는 "STAGE CLEAR" 연출(StageClearOverlay) 타이밍 —
+        // 재확정(2026-09-08): 총 약 3초, 3구간.
+        //   0~1초(FadeIn): 텍스트 0%->100% 불투명, 배경(딤)도 함께 0->목표 알파로 등장.
+        //   1~2초(Hold):   텍스트/배경 그대로 유지한 채 뒤에서 실제 라운드 전환 실행
+        //                  (전환이 늦어지면 이 구간만 자연히 늘어남 — "약 3초").
+        //   2~3초(FadeOut):텍스트 100%->0%. 배경은 딤 다이얼로그와 동일한 목표 알파에
+        //                  고정돼 있다가, 텍스트 알파가 그 목표치 밑으로 내려오는
+        //                  순간부터 텍스트와 정확히 같은 값으로 함께 0까지 내려간다
+        //                  (사용자 확정: "모든 화면이 자연스럽게 투명해지는 것처럼").
+        public const float StageClearFadeInTime = 1f;
+        public const float StageClearHoldTime = 1f;
+        public const float StageClearFadeOutTime = 1f;
+
+        // STAGE CLEAR 텍스트가 두 줄로 꺾이던 문제 수정(2026-09-08) — Title(140)보다
+        // 작게, 줄바꿈도 아예 꺼서(StageClearOverlay 참고) 항상 한 줄로 나오게 한다.
+        public const float FontSizeStageClear = 110f;
     }
 }
