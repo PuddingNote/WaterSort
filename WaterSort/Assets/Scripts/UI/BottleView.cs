@@ -272,10 +272,15 @@ namespace ColorSort.UI
             if (_waterVisual != null) _waterVisual.localEulerAngles = rotation;
         }
 
-        /// <summary>물+마스크(_waterVisual)만 좌우로 살짝 밀어서 BottleMask와
-        /// BottleBackground 그림 윗부분(입구 쪽 모서리)의 미세한 어긋남을 보정한다 —
-        /// 붓는 병이 기울어져 있는 동안에만 쓴다(SetTilt와 짝을 이뤄서 같이
-        /// 애니메이션). BottleMask가 없으면(_waterVisual이 null) 조용히 무시한다.
+        /// <summary>물+마스크(_waterVisual)를 좌우로 살짝 밀어서 BottleMask와
+        /// BottleBackground 그림 윗부분(입구 쪽 모서리)의 미세한 어긋남을 "측정 시점에만"
+        /// 반영한다 — <b>실제 렌더링에는 절대 지속적으로 걸어두면 안 된다</b>
+        /// (PourAnimator.PlayRoutine/UpdateStream이 스파웃 위치를 구하는 그 한 줄
+        /// 전후로 걸었다 바로 0으로 되돌리는 식으로만 쓴다). 계속 걸어두면 물/마스크
+        /// 전체가 병 그림(Visual)과 어긋난 채로 기울어져서, 물이 유리 실루엣 밖으로
+        /// 삐져나와 보이는 버그가 생긴다(2026-09-08 실제로 겪음 — 사용자가 영상으로
+        /// 제보, docs/Architecture.md 참고). BottleMask가 없으면(_waterVisual이 null)
+        /// 조용히 무시한다.
         ///
         /// 반드시 병 그림(Visual)이 아니라 물 쪽(_waterVisual)을 밀어야 한다 — 이
         /// 병의 물줄기 시작점(PourAnimator.SpoutWorldPosition)은 FillArea(물 쪽

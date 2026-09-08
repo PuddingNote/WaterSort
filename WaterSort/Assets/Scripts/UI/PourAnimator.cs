@@ -186,15 +186,24 @@ namespace ColorSort.UI
             root.position = startWorldPos; // 화면상 위치는 그대로 유지한 채로 부모만 교체.
 
             float fullAngle = sign * UiTheme.PourTiltAngleDeg;
-            // BottleMask/BottleBackground 윗부분이 살짝 어긋나 있어서, 기울어진 동안
-            // 물 쪽(_waterVisual)을 이만큼 옆으로 밀어야 병 그림이 스파웃 위치에
-            // 자연스럽게 맞아 보인다(사용자 확정치, UiTheme.PourVisualHorizontalNudge
-            // 참고). 부호가 sign의 반대인 이유: 이 값은 물 쪽에 주는 오프셋이고,
-            // 실제로 화면에서 "병 그림이 이만큼 움직여 보이는" 방향은 아래 델타 보정
-            // (hoverRootTarget 계산)이 이 오프셋을 상쇄하면서 반대 방향으로 밀어내는
-            // 결과이기 때문이다(BottleView.SetWaterHorizontalOffset 주석 참고) — 그래서
-            // sign과 반대 부호를 써야 사용자가 원한 방향("오른쪽으로 기울 때 이 값,
-            // 왼쪽으로 기울 때 반대")이 실제로 나온다.
+            // BottleMask/BottleBackground 윗부분이 살짝 어긋나 있어서, 물줄기가 시작되는
+            // 지점(스파웃)만 병 그림의 실제 입구와 맞도록 옆으로 이만큼 밀어 "측정"해야
+            // 한다(사용자 확정치, UiTheme.PourVisualHorizontalNudge 참고). 부호가 sign의
+            // 반대인 이유: 이 값은 물 쪽 측정에 주는 가상의 보정이고, 실제로 화면에서
+            // "병 그림이 이만큼 움직여 보이는" 방향은 아래 델타 보정(hoverRootTarget
+            // 계산)이 이 보정을 상쇄하면서 반대 방향으로 밀어내는 결과이기 때문이다
+            // (BottleView.SetWaterHorizontalOffset 주석 참고) — 그래서 sign과 반대 부호를
+            // 써야 사용자가 원한 방향("오른쪽으로 기울 때 이 값, 왼쪽으로 기울 때
+            // 반대")이 실제로 나온다.
+            //
+            // 버그 수정(2026-09-08, 사용자가 영상으로 제보): 예전엔 이 fullNudge를
+            // Tween 내내 SetWaterHorizontalOffset으로 실제 렌더링에도 계속 걸어뒀는데,
+            // 그러면 물/마스크(_waterVisual) 전체가 Visual(병 그림)과 어긋난 채로
+            // 기울어져서, 물이 병 유리 실루엣 밖으로 삐져나와 보이는 문제가 있었다.
+            // 이제 fullNudge는 "스파웃 위치를 측정할 때만" 잠깐 걸었다 바로 되돌리는
+            // 용도로만 쓴다(아래 hoverRootTarget 계산과 UpdateStream 참고) — 물/마스크는
+            // 항상 오프셋 0으로 그려져서 Visual과 완전히 겹친 채로만 움직이고, 물줄기
+            // (Stream)만 이 가상의 보정된 위치에서 시작하는 것처럼 보이게 한다.
             float fullNudge = -sign * UiTheme.PourVisualHorizontalNudge;
 
             // 스파웃(입구의 처지는 쪽 모서리)이 도착 병 바로 위, 도착 병과 같은 X에
@@ -217,11 +226,13 @@ namespace ColorSort.UI
             source.SetWaterHorizontalOffset(0f);
 
             // 1) 들어올려서 목표 병 위로 이동 + 기울이기 시작.
+            // fullNudge는 여기서 렌더링에 걸지 않는다(SetWaterHorizontalOffset을 안 부름) —
+            // 아래 UpdateStream 주석 참고. 물/마스크(_waterVisual)는 항상 오프셋 0으로
+            // 그려져서 Visual(병 그림)과 완전히 겹친 채로만 움직인다.
             yield return Tween(UiTheme.PourLiftTime, p =>
             {
                 float e = Ease(p);
                 source.SetTilt(fullAngle * e);
-                source.SetWaterHorizontalOffset(fullNudge * e);
                 root.position = Vector3.Lerp(startWorldPos, hoverRootTarget, e);
             });
 
@@ -234,7 +245,7 @@ namespace ColorSort.UI
             {
                 shrink.SetUnitCount(Mathf.Lerp(shrinkStart, shrinkTarget, p));
                 grow.SetUnitCount(Mathf.Lerp(growStart, growTarget, p));
-                UpdateStream(stream, source, dest, move.Color, move.Count);
+                UpdateStream(stream, source, dest, move.Color, move.Count, fullNudge);
             });
             DestroyStream(stream);
 
@@ -243,11 +254,9 @@ namespace ColorSort.UI
             {
                 float e = Ease(p);
                 source.SetTilt(fullAngle * (1f - e));
-                source.SetWaterHorizontalOffset(fullNudge * (1f - e));
                 root.position = Vector3.Lerp(hoverRootTarget, startWorldPos, e);
             });
             source.SetTilt(0f);
-            source.SetWaterHorizontalOffset(0f);
             root.position = startWorldPos; // 부동소수 오차 없이 정확히 원위치로 스냅.
 
             // 원래 자리로 복귀 — childControlWidth/Height=true인 레이아웃 그룹이라
@@ -362,7 +371,7 @@ namespace ColorSort.UI
             if (streamGo != null) UnityEngine.Object.Destroy(streamGo);
         }
 
-        private void UpdateStream(GameObject streamGo, BottleView source, BottleView dest, ColorId color, int count)
+        private void UpdateStream(GameObject streamGo, BottleView source, BottleView dest, ColorId color, int count, float fullNudge)
         {
             if (streamGo == null || !_streamImages.TryGetValue(streamGo, out var img)) return;
             var rect = (RectTransform)streamGo.transform;
@@ -373,7 +382,16 @@ namespace ColorSort.UI
             // 차 있는 물의 수면 — 안 그러면 물이 병 위쪽에서 뚝 끊긴 채 허공에
             // 떨어지는 것처럼 보인다(둘 다 사용자 확정 버그). 물이 차오르면서
             // 수면도 매 프레임 같이 올라가니 물줄기가 계속 자연스럽게 따라붙는다.
+            //
+            // fullNudge는 이 한 줄(SpoutWorldPosition 측정)에서만 잠깐 걸었다 바로
+            // 되돌린다(hoverRootTarget 계산 때와 같은 패턴) — 물/마스크(_waterVisual)가
+            // 실제로 렌더링될 땐 항상 오프셋 0이라 Visual(병 그림)과 계속 겹쳐 있고,
+            // 물줄기 시작점만 "병 그림의 실제 입구" 위치에서 시작한 것처럼 계산된다
+            // (버그 수정, PlayRoutine의 fullNudge 주석 참고). 같은 프레임 안에서 렌더링
+            // 전에 원상복구되므로 화면엔 이 순간 이동이 전혀 안 보인다.
+            source.SetWaterHorizontalOffset(fullNudge);
             Vector2 start = ToLocal(rect, SpoutWorldPosition(source));
+            source.SetWaterHorizontalOffset(0f);
             Vector2 end = ToLocal(rect, dest.WaterSurfaceWorldPosition());
 
             Vector2 diff = end - start;

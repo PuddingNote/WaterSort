@@ -138,10 +138,13 @@ namespace ColorSort.UI
         // 그렸더니 마디마다 꺾여 보여서 오히려 부자연스러웠다(사용자 확정, 2026-08-26).
         public const float PourStreamBaseThickness = 10f;
         // BottleMask와 BottleBackground 그림 윗부분(입구 쪽 모서리)이 살짝 어긋나 있어서,
-        // 기울어진 채로 붓는 동안 물 쪽(BottleView._waterVisual)을 이만큼 옆으로 밀어야
-        // 병 그림이 물줄기 시작점에 자연스럽게 맞아 보인다(사용자가 Scene 뷰에서 직접
-        // 맞춰본 값, 2026-09-08 확정 — 오른쪽으로 기울 때 기준, 왼쪽으로 기울 때는 부호
-        // 반대로 적용). BottleView.SetWaterHorizontalOffset 참고.
+        // 물줄기 시작점(스파웃)을 측정할 때만 물 쪽(BottleView._waterVisual)을 이만큼
+        // 옆으로 밀어야 병 그림이 물줄기 시작점에 자연스럽게 맞아 보인다(사용자가
+        // Scene 뷰에서 직접 맞춰본 값, 2026-09-08 확정 — 오른쪽으로 기울 때 기준,
+        // 왼쪽으로 기울 때는 부호 반대로 적용). 실제 렌더링(물/마스크 자체가 보이는
+        // 위치)에는 절대 지속적으로 걸면 안 된다 — 그러면 물이 병 유리 실루엣 밖으로
+        // 삐져나와 보인다(2026-09-08 버그 수정, PourAnimator.UpdateStream/
+        // BottleView.SetWaterHorizontalOffset 참고).
         public const float PourVisualHorizontalNudge = 18f;
 
         // 화면 가운데 잠깐 떴다가 사라지는 토스트 텍스트(힌트 더 못 찾을 때 등) 규격 —
