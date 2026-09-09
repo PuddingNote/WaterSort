@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ColorSort.Core;
@@ -13,7 +14,7 @@ namespace ColorSort.UI
     /// <summary>
     /// 게임 화면(GameDesign.md UI 배치). <see cref="PuzzleSession"/>을 유일한
     /// 진실 소스로 삼는다 — 조작이 성공하면 Board는 그 즉시 바뀌지만, 화면은
-    /// <see cref="PourAnimator"/>가 붓기 연출로 서서히 따라잡는다(하이라이트만
+    /// <see cref="PourAnimator"/>가 붓기 연출로 서서히 따라잡는다(선택 표시만
     /// 즉시 갱신). 무효 이동 진동·클리어/교착 팝업은 아직 로그로만 남는다.
     /// </summary>
     public sealed class GameView : MonoBehaviour
@@ -39,7 +40,13 @@ namespace ColorSort.UI
         private RectTransform _activeDialog;
         private bool _hintInFlight;
 
-        private static readonly Color SelectedHighlight = new Color(0.36f, 0.79f, 0.89f, 0.9f); // UiTheme.PrimaryColor 톤
+        // 선택된 병을 "손으로 살짝 들어올린" 것처럼 표현하는 연출(2026-09-09 확정 —
+        // 하이라이트 색 덮어씌우기 대신 y축으로 부드럽게 들어올리는 방식으로 교체).
+        // _liftedIndex는 지금 들려 있어야(또는 들리는 애니메이션 진행 중이어야) 할
+        // 병 인덱스 — RefreshHighlights가 _selectedIndex와 비교해서 달라졌을 때만
+        // 애니메이션을 새로 건다(매번 다시 트는 게 아니라 상태가 바뀐 시점에만).
+        private int? _liftedIndex;
+        private readonly Dictionary<int, Coroutine> _liftRoutines = new Dictionary<int, Coroutine>();
 
         public static GameView Build(Transform parent, int roundId, PuzzleSession session, Callbacks callbacks)
         {
@@ -279,15 +286,24 @@ namespace ColorSort.UI
 
             // 내용물 갱신은 여기서 즉시 하지 않는다 — 성공한 이동은 PourAnimator가
             // 붓기 연출로 서서히 반영하고, 실패한 이동은 애초에 Board가 안 바뀌었으니
-            // 하이라이트만 정리하면 된다. 다른 병에서 진행 중인 연출은 그대로 둔다
-            // (입력을 막지 않기로 확정 — GameDesign.md).
+            // 아래 RefreshHighlights가 들어올려져 있던 출발 병을 부드럽게 내려놓기만
+            // 하면 된다. 다른 병에서 진행 중인 연출은 그대로 둔다(입력을 막지 않기로
+            // 확정 — GameDesign.md).
             //
             // 클리어/교착 판정(EvaluateBoardState)은 성공한 이동이면 붓기 연출이
             // 실제로 다 끝난 뒤에 한다 — Board 자체는 TryMove 순간 이미 바뀌어서
             // 그 즉시 판정하면 마지막 물병이 화면에 다 차는 걸 보여주기도 전에
             // 클리어 처리되어 버린다(실제로 겪은 버그).
             if (result.Success)
+            {
+                // 선택 중 들어올려져 있던 만큼을 여기서 즉시 0으로 스냅한다(애니메이션
+                // 없이) — 이제부터는 PourAnimator가 훨씬 큰 폭으로 스스로 들어올리는
+                // 연출을 처음부터 새로 재생하므로, 남은 선택-리프트 코루틴이 그 위에
+                // 겹쳐 더 들뜬 것처럼 보이면 안 된다(SnapBottleLift가 진행 중이던
+                // 코루틴도 같이 멈춘다).
+                SnapBottleLift(from, 0f);
                 _pourAnimator.Play(result, _bottleViews[result.FromIndex], _bottleViews[result.ToIndex], onComplete: EvaluateBoardState);
+            }
             else
             {
                 Debug.Log("[GameView] 무효 이동 — TODO: 진동/튕김 피드백");
@@ -450,17 +466,22 @@ namespace ColorSort.UI
             RefreshHighlights();
         }
 
-        /// <summary>선택 하이라이트와 버튼 활성 상태만 다시 그린다 — 병 내용물은 안
-        /// 건드리므로 다른 병에서 진행 중인 붓기 연출을 방해하지 않는다. 힌트는 더
-        /// 이상 하이라이트를 남기지 않고(OnHintClicked 참고) 그 자리에서 바로
-        /// 이동을 실행하므로 여기서 따로 처리할 게 없다.</summary>
+        /// <summary>선택된 병의 들어올리기 연출과 버튼 활성 상태만 다시 그린다 — 병
+        /// 내용물은 안 건드리므로 다른 병에서 진행 중인 붓기 연출을 방해하지 않는다.
+        /// 힌트는 더 이상 하이라이트를 남기지 않고(OnHintClicked 참고) 그 자리에서
+        /// 바로 이동을 실행하므로 여기서 따로 처리할 게 없다.</summary>
         private void RefreshHighlights()
         {
-            for (int i = 0; i < _bottleViews.Count; i++)
-                _bottleViews[i].SetHighlight(Color.clear);
-
-            if (_selectedIndex.HasValue)
-                _bottleViews[_selectedIndex.Value].SetHighlight(SelectedHighlight);
+            // _liftedIndex(지금 실제로 들려 있는/들리는 중인 병)와 _selectedIndex(지금
+            // 선택된 병)가 다를 때만 애니메이션을 새로 건다 — RefreshHighlights는
+            // 선택과 무관한 이유(광고 버튼 상태 등)로도 자주 불리므로, 매번 무조건
+            // 다시 트면 이미 도착한 애니메이션을 불필요하게 재시작하게 된다.
+            if (_liftedIndex != _selectedIndex)
+            {
+                if (_liftedIndex.HasValue) SetBottleLifted(_liftedIndex.Value, false);
+                if (_selectedIndex.HasValue) SetBottleLifted(_selectedIndex.Value, true);
+                _liftedIndex = _selectedIndex;
+            }
 
             _undoButton.interactable = _session.CanUndo;
             _hintButton.interactable = !_session.IsCleared && !_hintInFlight; // 계산 중엔 중복 클릭 방지.
@@ -469,6 +490,57 @@ namespace ColorSort.UI
             _addContainerButton.interactable = _session.CanUnlockBonusContainer &&
                 RewardedAdService.IsReady(AdUnitIds.BonusContainerRewarded);
         }
+
+        /// <summary>bottleViews[index]를 목표 상태(들림/안 들림)로 부드럽게 애니메이션한다
+        /// — 이미 그 병으로 같은 목표를 향해 가는 중이거나 이미 도착해 있으면(부동소수
+        /// 오차 감안) 아무것도 하지 않는다. 진행 중이던 반대 방향 애니메이션이 있으면
+        /// 먼저 멈추고, 그 코루틴이 마지막으로 남긴 현재값(<see cref="BottleView.LiftOffset"/>)
+        /// 에서부터 이어서 새 목표로 향한다 — 그래야 빠르게 다시 탭해도(들리는 도중
+        /// 취소 등) 뚝 끊기지 않고 자연스럽게 방향만 바뀐다.</summary>
+        private void SetBottleLifted(int index, bool lifted)
+        {
+            if (_liftRoutines.TryGetValue(index, out var existing) && existing != null)
+                StopCoroutine(existing);
+
+            var bottle = _bottleViews[index];
+            float target = lifted ? UiTheme.BottleSelectLiftHeight : 0f;
+            if (Mathf.Approximately(bottle.LiftOffset, target))
+            {
+                _liftRoutines.Remove(index);
+                return;
+            }
+            _liftRoutines[index] = StartCoroutine(LiftRoutine(index, bottle, target));
+        }
+
+        /// <summary>애니메이션 없이 즉시 값으로 스냅한다 — 진행 중이던 리프트 코루틴이
+        /// 있으면 먼저 멈춰서, 다음 프레임에 그 코루틴이 이 값을 덮어쓰는 일이 없게
+        /// 한다(PerformMove가 성공한 이동을 PourAnimator에 넘기기 직전에 씀).</summary>
+        private void SnapBottleLift(int index, float value)
+        {
+            if (_liftRoutines.TryGetValue(index, out var existing) && existing != null)
+            {
+                StopCoroutine(existing);
+                _liftRoutines.Remove(index);
+            }
+            _bottleViews[index].SetLiftOffset(value);
+        }
+
+        private IEnumerator LiftRoutine(int index, BottleView bottle, float target)
+        {
+            float start = bottle.LiftOffset;
+            float t = 0f;
+            while (t < UiTheme.BottleSelectLiftTime)
+            {
+                t += Time.deltaTime;
+                float e = Ease(Mathf.Clamp01(t / UiTheme.BottleSelectLiftTime));
+                bottle.SetLiftOffset(Mathf.Lerp(start, target, e));
+                yield return null;
+            }
+            bottle.SetLiftOffset(target);
+            _liftRoutines.Remove(index);
+        }
+
+        private static float Ease(float p) => p * p * (3f - 2f * p); // smoothstep — PourAnimator와 같은 완급.
 
         private void EvaluateBoardState()
         {

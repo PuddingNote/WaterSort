@@ -125,6 +125,15 @@ namespace ColorSort.UI
         // 곱해서 쓴다(원래도 반투명한 자리표시자 색이면 거기서 더 흐려짐).
         public const float LockedBottleAlpha = 0.25f;
 
+        // 병 선택 시 "손으로 살짝 들어올린" 느낌을 주는 연출(2026-09-09 확정) — 이전엔
+        // 선택된 병 위에 하이라이트 색을 덮어씌우는 방식이었는데, 그 대신 y축으로
+        // 살짝 들어올리는 쪽으로 교체했다. BottleView.SetLiftOffset/GameView.SetBottleLifted
+        // 참고. 붓기 자체(PourAnimator)의 큰 들어올리기와는 별개 — 그쪽은 도착 병
+        // 높이에 비례(PourHoverHeightRatio)하지만 이건 그냥 "집어 든 티" 정도라 작고
+        // 고정된 값.
+        public const float BottleSelectLiftHeight = 32f;
+        public const float BottleSelectLiftTime = 0.15f;
+
         // 붓기 애니메이션 규격 — GameDesign.md TBD 확정(2026-08-25): 총 소요시간 약 1초.
         // 실제 물병 게임처럼 붓는 병이 도착 병 위로 들려 올라가 기울여지고, 다 부으면
         // 제자리로 돌아온다(들어올리기/복귀에 나머지 시간을 나눠 쓴다). 입력은 막지

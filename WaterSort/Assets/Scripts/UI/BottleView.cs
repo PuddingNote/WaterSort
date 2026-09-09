@@ -75,7 +75,11 @@ namespace ColorSort.UI
         private const float VisualPivotY = 0.08f;
 
         private readonly List<Segment> _segments = new List<Segment>();
-        private readonly Image _highlight;
+
+        /// <summary>선택 시 병을 살짝 들어올리는 연출(GameView 참고)이 지금 Visual/
+        /// _waterVisual에 얹어 둔 y 오프셋 — GameView의 리프트 코루틴이 중간에 방향을
+        /// 바꿔야 할 때(예: 들리는 도중 재탭으로 취소) 어디서부터 이어갈지 읽는 용도.</summary>
+        public float LiftOffset { get; private set; }
 
         public BottleView(Transform parent, int capacity, int unlockedCapacity, int containerIndex, Action<int> onTapped)
         {
@@ -88,7 +92,7 @@ namespace ColorSort.UI
             go.GetComponent<Image>().color = Color.clear; // 탭 히트박스 전용 — 안 보이고, 기울지도 않음.
 
             var button = go.GetComponent<Button>();
-            button.transition = Selectable.Transition.None; // 색 변화는 SetHighlight로 직접 관리
+            button.transition = Selectable.Transition.None; // 선택 표시는 색이 아니라 SetLiftOffset(들어올리기)로 직접 관리
             button.onClick.AddListener(() => onTapped?.Invoke(containerIndex));
 
             Visual = UiFactory.CreatePanel(Root, "Visual", OutlinePlaceholder);
@@ -200,10 +204,6 @@ namespace ColorSort.UI
             FillArea.anchorMax = new Vector2(fillNormalized.xMax, fillNormalized.yMax);
             FillArea.offsetMin = Vector2.zero;
             FillArea.offsetMax = Vector2.zero;
-
-            _highlight = UiFactory.CreateImage(Root, "Highlight", sprite: null, Color.clear);
-            _highlight.raycastTarget = false;
-            UiFactory.Stretch((RectTransform)_highlight.transform, padding: -4f);
         }
 
         /// <summary>bottleSprite와 maskSprite가 둘 다 있고 같은 크기의 원본 텍스처에서
@@ -299,6 +299,25 @@ namespace ColorSort.UI
             _waterVisual.offsetMax = new Vector2(pixels, _waterVisual.offsetMax.y);
         }
 
+        /// <summary>병을 선택했을 때 손으로 살짝 들어올린 것처럼 보이게, 병 그림+물
+        /// (Visual과 있으면 _waterVisual)을 함께 위로(pixels만큼) 옮긴다. 탭 히트박스인
+        /// Root는 건드리지 않는다 — Root는 HorizontalLayoutGroup이 위치를 관리하는
+        /// 그리드 칸이라, 다른 이유(SetTilt/SetWaterHorizontalOffset와 동일)로도
+        /// 직접 건드리면 레이아웃과 충돌한다(PourAnimator가 붓는 병을 그리드에서
+        /// 떼어내는 것과 같은 이유). y만 바꾸므로 SetWaterHorizontalOffset이 이미
+        /// 걸어 둔 x 오프셋(붓기 스파웃 보정)과는 서로 간섭하지 않는다.</summary>
+        public void SetLiftOffset(float pixels)
+        {
+            LiftOffset = pixels;
+            Visual.offsetMin = new Vector2(Visual.offsetMin.x, pixels);
+            Visual.offsetMax = new Vector2(Visual.offsetMax.x, pixels);
+            if (_waterVisual != null)
+            {
+                _waterVisual.offsetMin = new Vector2(_waterVisual.offsetMin.x, pixels);
+                _waterVisual.offsetMax = new Vector2(_waterVisual.offsetMax.x, pixels);
+            }
+        }
+
         /// <summary>애니메이션 없이 컨테이너 내용을 즉시 반영 — 초기 배치, undo/reset,
         /// 그리고 붓기 애니메이션이 끝난 뒤 최종 스냅에 쓴다.</summary>
         public void Refresh(Container container)
@@ -318,8 +337,6 @@ namespace ColorSort.UI
                 i += count;
             }
         }
-
-        public void SetHighlight(Color color) => _highlight.color = color;
 
         /// <summary>지금 쌓인 물의 총 유닛 수(소수 가능 — 애니메이션 중간값 포함).
         /// <see cref="WaterSurfaceWorldPosition"/>이 이 값으로 실제 수면 높이를 계산한다.</summary>
