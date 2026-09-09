@@ -14,6 +14,7 @@ namespace ColorSort.UI
         private static bool _skinLoadAttempted;
         private static Sprite _loadingSpinnerSprite;
         private static bool _loadingSpinnerLoadAttempted;
+        private static Sprite _glassHighlightSprite;
 
         /// <summary>프로젝트 전체 텍스트가 예외 없이 이 폰트를 쓴다(사용자 지정 고정값).
         /// 프리팹/씬에 미리 꽂아두지 않고 코드에서 로드하는 이유는 이 프로젝트가 UI를
@@ -62,6 +63,57 @@ namespace ColorSort.UI
                 return _loadingSpinnerSprite;
             }
         }
+
+        /// <summary>병(물) 위에 얹는 세로 유리 하이라이트 띠 — 그림 파일이 아니라
+        /// 런타임에 코드로 생성한다(1x64 픽셀 가로 그라디언트 텍스처, 한 번만 만들고
+        /// 캐시). "그냥 팔레트에 색만 띡 칠한 느낌"이라는 지적으로 예전에 AI로 만든
+        /// 정적 이미지(glass_highlight.png)를 붙여봤다가 "그냥 별로"라는 피드백으로
+        /// 완전히 롤백한 적이 있다(2026-09-08, docs/Architecture.md 참고) — 그때
+        /// 레이어 순서(물 위, 병 그림 아래) 자체는 맞았지만 그림 품질이 별로였다.
+        /// 이번엔 외부 그림 품질에 기대지 않고 코드로 직접 부드러운 종 모양
+        /// (smoothstep) 알파 그라디언트를 만들어서, 위치/폭/밝기를 전부 아래 상수로
+        /// 바로 조절할 수 있게 했다(BottleView가 FillArea 바로 위에 얹는다).</summary>
+        public static Sprite GlassHighlightSprite
+        {
+            get
+            {
+                if (_glassHighlightSprite == null) _glassHighlightSprite = BuildGlassHighlightSprite();
+                return _glassHighlightSprite;
+            }
+        }
+
+        private static Sprite BuildGlassHighlightSprite()
+        {
+            const int width = 64;
+            var texture = new Texture2D(width, 1, TextureFormat.RGBA32, false)
+            {
+                name = "GlassHighlightGradient",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+
+            var pixels = new Color[width];
+            for (int x = 0; x < width; x++)
+            {
+                float t = x / (float)(width - 1); // 0(왼쪽 끝) ~ 1(오른쪽 끝).
+                float dist = Mathf.Abs(t - GlassHighlightPeakX) / GlassHighlightSoftness;
+                float alpha = Mathf.Clamp01(1f - dist);
+                alpha = alpha * alpha * (3f - 2f * alpha); // smoothstep — 부드러운 종 모양.
+                pixels[x] = new Color(1f, 1f, 1f, alpha * GlassHighlightMaxAlpha);
+            }
+            texture.SetPixels(pixels);
+            texture.Apply();
+
+            return Sprite.Create(texture, new Rect(0f, 0f, width, 1f), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        // GlassHighlightSprite 모양 조절값 — 참고 이미지처럼 왼쪽으로 살짝 치우친
+        // 위치(중앙이 아니라 28% 지점)에 빛줄기가 오도록. GlassHighlightSprite가
+        // 한 번 생성되면 그 텍스처를 앱이 켜져 있는 동안 계속 캐시해서 재사용하므로,
+        // 이 값을 바꾸면 다음 실행(에디터 재생 포함)부터 반영된다.
+        public const float GlassHighlightPeakX = 0.28f; // 가장 밝은 지점(0=왼쪽 끝, 1=오른쪽 끝).
+        public const float GlassHighlightSoftness = 0.22f; // 이 폭만큼 좌우로 퍼지며 옅어짐.
+        public const float GlassHighlightMaxAlpha = 0.22f; // 가장 밝은 지점의 최대 불투명도(0.3 -> 0.22, 2026-09-09 — "살짝 너무 밝다"는 피드백으로 낮춤).
 
         // 색상 — 물병 테마 톤(어두운 네이비 + 청량한 포인트 컬러). GameDesign.md 5장 참고.
         // 소재가 바뀌면 이 파일의 값만 바꾸면 된다(로직 코드는 색상값을 모름).

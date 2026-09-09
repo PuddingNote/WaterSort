@@ -204,6 +204,24 @@ namespace ColorSort.UI
             FillArea.anchorMax = new Vector2(fillNormalized.xMax, fillNormalized.yMax);
             FillArea.offsetMin = Vector2.zero;
             FillArea.offsetMax = Vector2.zero;
+
+            // 유리 하이라이트 — FillArea의 형제로, FillArea보다 나중에(=z-order상
+            // 위에) 만들어서 물 세그먼트가 몇 개든·색이 뭐든 항상 그 위에 한 줄기
+            // 빛으로 걸쳐 보이게 한다. FillArea와 완전히 같은 영역(anchor)을 써서
+            // 마스크가 실제로 물을 보여주는 자리와 정확히 겹치고(BottleMask가 있으면
+            // 같은 Mask 안에 있어서 실루엣 밖으로 안 튀어나옴), 병이 비어 있을 땐
+            // 유리 자체의 반짝임처럼, 물이 차 있을 땐 물+유리를 가로지르는 빛줄기처럼
+            // 보인다(참고 이미지와 같은 효과, 2026-09-09 확정 — UiTheme.GlassHighlightSprite
+            // 참고, 그림 대신 코드로 생성한 그라디언트라 예전에 실패했던 정적 이미지
+            // 방식과 다름).
+            var highlight = UiFactory.CreateImage(fillAreaParent, "Highlight", UiTheme.GlassHighlightSprite, Color.white);
+            highlight.type = Image.Type.Simple;
+            highlight.raycastTarget = false;
+            var highlightRect = (RectTransform)highlight.transform;
+            highlightRect.anchorMin = FillArea.anchorMin;
+            highlightRect.anchorMax = FillArea.anchorMax;
+            highlightRect.offsetMin = Vector2.zero;
+            highlightRect.offsetMax = Vector2.zero;
         }
 
         /// <summary>bottleSprite와 maskSprite가 둘 다 있고 같은 크기의 원본 텍스처에서
