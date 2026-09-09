@@ -221,5 +221,15 @@ namespace ColorSort.UI
         // STAGE CLEAR 텍스트가 두 줄로 꺾이던 문제 수정(2026-09-08) — Title(140)보다
         // 작게, 줄바꿈도 아예 꺼서(StageClearOverlay 참고) 항상 한 줄로 나오게 한다.
         public const float FontSizeStageClear = 110f;
+
+        // "STAGE CLEAR" 텍스트 뒤(딤 배경 앞)에서 터지는 원형 파티클 축하 이펙트
+        // (2026-09-09 확정, StageClearBurst 참고) — 텍스트가 완전히 나타나는 순간
+        // (Hold 구간 시작)에 맞춰 재생한다. 새 파티클 시스템 없이 이미 있는 원형
+        // 그림(circle.png)을 여러 개 복제해서 각자 다른 각도로 밀어내는 방식.
+        public const int StageClearBurstParticleCount = 14;
+        public const float StageClearBurstParticleSize = 30f;
+        public const float StageClearBurstMaxDistance = 380f;
+        public const float StageClearBurstDuration = 0.7f;
+        public static readonly Color StageClearBurstColor = PrimaryColor;
     }
 }

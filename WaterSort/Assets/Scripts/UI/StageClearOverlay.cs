@@ -37,11 +37,13 @@ namespace ColorSort.UI
         {
             public readonly RectTransform Root;
             public readonly Image Background;
+            public readonly RectTransform BurstLayer;
             public readonly TMP_Text Text;
-            public Handle(RectTransform root, Image background, TMP_Text text)
+            public Handle(RectTransform root, Image background, RectTransform burstLayer, TMP_Text text)
             {
                 Root = root;
                 Background = background;
+                BurstLayer = burstLayer;
                 Text = text;
             }
         }
@@ -68,6 +70,13 @@ namespace ColorSort.UI
             var background = backgroundRect.GetComponent<Image>();
             SetBackgroundAlpha(background, 0f); // 처음엔 완전히 투명.
 
+            // Background 다음, Text보다 먼저 만들어서 z-order를 "배경 위, 텍스트
+            // 아래"로 고정해 둔다(StageClearBurst 참고) — 실제로 파티클을 채워
+            // 넣고 재생하는 건 Play()가 텍스트가 완전히 나타나는 순간에 한다.
+            var burstLayer = UiFactory.CreatePanel(root, "Burst", Color.clear);
+            UiFactory.Stretch(burstLayer);
+            burstLayer.GetComponent<Image>().raycastTarget = false;
+
             var text = UiFactory.CreateText(root, "STAGE CLEAR", UiTheme.FontSizeStageClear, UiTheme.TextPrimary);
             text.enableWordWrapping = false; // 두 줄로 꺾이지 않고 항상 한 줄로.
             var textRect = (RectTransform)text.transform;
@@ -77,7 +86,7 @@ namespace ColorSort.UI
             textRect.anchoredPosition = Vector2.zero;
             text.alpha = 0f; // 처음엔 완전히 투명.
 
-            return new Handle(root, background, text);
+            return new Handle(root, background, burstLayer, text);
         }
 
         public static void Hide(Handle overlay)
@@ -96,11 +105,24 @@ namespace ColorSort.UI
             float bgTarget = UiTheme.DimBackground.a; // 다이얼로그 딤 배경과 동일한 목표 알파(166/255).
 
             // 1) 페이드인: 텍스트 0->100%, 배경도 함께 0->목표 알파로 등장.
+            // 원형 파티클 축하 이펙트(StageClearBurst)는 텍스트가 다 나타난 뒤가
+            // 아니라 "나타나고 있는 도중"(페이드인 절반 지점, 0.5초)에 맞춰 튼다
+            // (사용자 확정 — 처음엔 페이드인이 끝난 직후였는데, 텍스트가 아직 채
+            // 안 보일 때 이펙트가 먼저 시작되는 편이 더 낫다고 재요청). t는 0~1
+            // 진행률이고 StageClearFadeInTime이 1초라 t>=0.5가 정확히 0.5초 시점과
+            // 같다 — Animate 콜백 안에서 한 번만 트는 플래그로 구현.
+            bool burstStarted = false;
             await Animate(UiTheme.StageClearFadeInTime, t =>
             {
                 SetTextAlpha(overlay.Text, t);
                 SetBackgroundAlpha(overlay.Background, Mathf.Lerp(0f, bgTarget, t));
+                if (!burstStarted && t >= 0.5f)
+                {
+                    burstStarted = true;
+                    StageClearBurst.Play(overlay.BurstLayer);
+                }
             });
+            if (!burstStarted) StageClearBurst.Play(overlay.BurstLayer); // 방어적 — 프레임이 너무 커서 0.5 지점을 건너뛴 경우.
 
             // 2) 유지: 텍스트/배경 그대로 둔 채 실제 라운드 전환을 실행.
             // 버그 수정(2026-09-08): onHoldPhase가 만드는 새 GameView는 canvas의 맨
