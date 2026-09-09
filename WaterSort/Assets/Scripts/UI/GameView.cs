@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ColorSort.Core;
 using ColorSort.Managers;
 using ColorSort.Solver;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -36,6 +37,14 @@ namespace ColorSort.UI
         private Button _addContainerButton;
         private PourAnimator _pourAnimator;
 
+        // 힌트 버튼 우측 상단 "남은 힌트 개수" 배지(UiTheme.HintBadge* 참고) —
+        // 값 자체는 HintStore(PlayerPrefs)가 진실 소스이고, 이건 그 값을 보여주는
+        // 텍스트/배경 이미지에 대한 참조일 뿐. 라운드가 바뀌면 GameView 자체가 새로
+        // 만들어지므로 Initialize에서 매번 HintStore.LoadCount()로 다시 읽는다.
+        private int _hintCount;
+        private TextMeshProUGUI _hintCountText;
+        private Image _hintBadgeImage;
+
         private int? _selectedIndex;
         private RectTransform _activeDialog;
         private bool _hintInFlight;
@@ -48,7 +57,10 @@ namespace ColorSort.UI
         private int? _liftedIndex;
         private readonly Dictionary<int, Coroutine> _liftRoutines = new Dictionary<int, Coroutine>();
 
-        public static GameView Build(Transform parent, int roundId, PuzzleSession session, Callbacks callbacks)
+        /// <param name="showHintChargeAnimation">이 라운드로 넘어오면서 힌트가 실제로
+        /// 1개 충전됐으면(3라운드 클리어마다, GameBootstrap 참고) true — 배지가
+        /// 만들어진 직후 그 위에 "+1" 애니메이션(FloatingHintCharge)을 재생한다.</param>
+        public static GameView Build(Transform parent, int roundId, PuzzleSession session, Callbacks callbacks, bool showHintChargeAnimation = false)
         {
             var go = new GameObject("GameView", typeof(RectTransform));
             var rect = (RectTransform)go.transform;
@@ -56,16 +68,17 @@ namespace ColorSort.UI
             UiFactory.Stretch(rect);
 
             var view = go.AddComponent<GameView>();
-            view.Initialize(rect, roundId, session, callbacks);
+            view.Initialize(rect, roundId, session, callbacks, showHintChargeAnimation);
             return view;
         }
 
-        private void Initialize(RectTransform root, int roundId, PuzzleSession session, Callbacks callbacks)
+        private void Initialize(RectTransform root, int roundId, PuzzleSession session, Callbacks callbacks, bool showHintChargeAnimation)
         {
             _canvasRoot = root.parent;
             _roundId = roundId;
             _session = session;
             _callbacks = callbacks;
+            _hintCount = HintStore.LoadCount(); // BuildBottomBar가 배지를 만들 때 바로 쓸 수 있게 미리 읽어 둠.
 
             var background = UiFactory.CreatePanel(root, "Background", UiTheme.BackgroundTop);
             UiFactory.Stretch(background);
@@ -73,6 +86,24 @@ namespace ColorSort.UI
             BuildTopBar(root);
             BuildBottleArea(root);
             BuildBottomBar(root);
+
+            // 이 라운드로 넘어오면서 힌트가 실제로 충전됐으면 힌트 버튼 위(가운데)에
+            // "+1"이 잠깐 떴다 사라지는 연출을 튼다. 배지(버튼 오른쪽 위 모서리)가
+            // 아니라 버튼 전체를 기준으로 잡아야 가운데에서 뜬다 — 배지 기준이었을
+            // 땐 너무 오른쪽에 치우쳐 보인다는 피드백으로 버튼 기준으로 바꿨었다.
+            //
+            // ForceUpdateCanvases가 필요한 이유(실제로 겪은 버그, 2026-09-09):
+            // rightGroup은 HorizontalLayoutGroup이 버튼들의 실제 위치(anchoredPosition)를
+            // 계산해서 배치하는데, 이 레이아웃 재계산은 Unity가 프레임 끝에 한 번
+            // 모아서 처리한다 — 방금 만든 _hintButton의 GetWorldCorners를 이 자리에서
+            // 바로 읽으면 아직 레이아웃이 안 끝난 상태(엉뚱한 위치)를 읽어서 "+1"이
+            // 버튼 중앙이 아니라 다른 자리(사용자가 보기엔 배지 근처)에서 시작하는
+            // 것처럼 보였다. RebuildBottles가 병 배치 직후에 이미 같은 이유로
+            // 쓰고 있는 것과 동일한 처방.
+            Canvas.ForceUpdateCanvases();
+
+            if (showHintChargeAnimation)
+                FloatingHintCharge.Show(_canvasRoot, (RectTransform)_hintButton.transform);
 
             // 붓는 병(그리드에서 잠깐 떼어내 자유롭게 움직임)과 물줄기 둘 다 병/버튼보다
             // 항상 위에 그려져야 하니 마지막에 만든 형제로 둔다.
@@ -204,7 +235,48 @@ namespace ColorSort.UI
             UiFactory.AddHorizontalLayout(rightGroup, spacing: 16f, forceExpandWidth: false, forceExpandHeight: true);
 
             _hintButton = UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.HintIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnHintClicked, fallbackText: "HINT");
+            BuildHintCountBadge(_hintButton.transform);
+            UpdateHintBadge(); // _hintCount는 Initialize 맨 앞에서 이미 HintStore.LoadCount()로 읽어 둠.
             _addContainerButton = UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.AddContainerIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "ADD");
+        }
+
+        /// <summary>힌트 버튼 우측 상단에 얹는 원형 배지(사용자가 다른 게임 스크린샷을
+        /// 참고로 요청, 2026-09-09) — 검은 숫자 텍스트(TextOnButton). 배경색은
+        /// _hintBadgeImage에 저장해 두고 UpdateHintBadge가 매번 갱신한다(평소 흰색,
+        /// 꽉 차면 노란색). 별도 스프라이트를 새로 만들지 않고 이미 있는 원형 그림
+        /// (UiTheme.LoadingSpinnerSprite, 로딩 스피너와 같은 에셋)을 재사용한다 —
+        /// 여긴 부채꼴로 안 채우고(Type.Simple) 꽉 찬 원 그대로 쓴다. 버튼(정사각형)
+        /// 오른쪽 위 모서리에 중심을 살짝 안쪽으로 당겨서(HintBadgeOffset) 걸치게
+        /// 배치 — 완전히 절반만 밖으로 나가면 바로 옆(16px 간격)의 병 추가 버튼과
+        /// 겹친다.</summary>
+        private void BuildHintCountBadge(Transform hintButtonTransform)
+        {
+            _hintBadgeImage = UiFactory.CreateImage(hintButtonTransform, "CountBadge", UiTheme.LoadingSpinnerSprite, UiTheme.HintBadgeNormalColor);
+            _hintBadgeImage.type = Image.Type.Simple; // CreateImage 기본값(Sliced)이 아니라 원본 그림 그대로.
+            _hintBadgeImage.preserveAspect = true;
+            _hintBadgeImage.raycastTarget = false; // 버튼 클릭 판정을 가로채면 안 됨.
+
+            var badgeRect = (RectTransform)_hintBadgeImage.transform;
+            badgeRect.anchorMin = badgeRect.anchorMax = new Vector2(1f, 1f);
+            badgeRect.pivot = new Vector2(0.5f, 0.5f);
+            badgeRect.sizeDelta = new Vector2(UiTheme.HintBadgeSize, UiTheme.HintBadgeSize);
+            badgeRect.anchoredPosition = UiTheme.HintBadgeOffset;
+
+            _hintCountText = UiFactory.CreateText(_hintBadgeImage.transform, string.Empty, UiTheme.HintBadgeFontSize, UiTheme.TextOnButton);
+            _hintCountText.raycastTarget = false;
+            UiFactory.Stretch((RectTransform)_hintCountText.transform, padding: 4f);
+        }
+
+        /// <summary>배지 숫자와 배경색을 _hintCount 기준으로 갱신한다 — 숫자는 항상
+        /// 그대로 보여주고, 최대치(HintStore.MaxHints)에 도달하면 배경색만 노란색으로
+        /// 바뀐다(사용자 확정, 2026-09-09 — 처음엔 숫자 대신 "MAX" 텍스트를 넣었는데
+        /// 좁은 원 안이라 잘 안 보인다는 피드백으로 색 변경 방식으로 교체).</summary>
+        private void UpdateHintBadge()
+        {
+            _hintCountText.text = _hintCount.ToString();
+            _hintBadgeImage.color = _hintCount >= HintStore.MaxHints
+                ? UiTheme.HintBadgeFullColor
+                : UiTheme.HintBadgeNormalColor;
         }
 
         private void RebuildBottles()
@@ -353,7 +425,9 @@ namespace ColorSort.UI
         /// 않는다(사용자 확정: 계산 중에도 다른 병 조작은 계속 가능해야 함).</summary>
         private async void OnHintClicked()
         {
-            if (_hintInFlight) return;
+            // _hintCount <= 0이면 버튼이 이미 비활성화돼 있어야 정상 경로에서는 여기
+            // 안 오지만(RefreshHighlights의 interactable 조건), 방어적으로 한 번 더 막는다.
+            if (_hintInFlight || _hintCount <= 0) return;
             _hintInFlight = true;
             RefreshHighlights(); // 힌트 버튼을 계산하는 동안 비활성화된 걸로 보여줌.
             var loading = HintLoadingOverlay.Show(_canvasRoot);
@@ -396,6 +470,13 @@ namespace ColorSort.UI
                 RefreshHighlights();
                 return;
             }
+
+            // 여기까지 왔으면 힌트를 실제로 소비한다(이동이 유효한지와 무관하게 —
+            // 어차피 위에서 이미 "다음 수를 찾음/붓는 중 아님"까지 확인했고, 아래
+            // PerformMove의 TryMove 재검증은 계산 중 다른 조작으로 상태가 바뀐
+            // 드문 경우에 대한 방어일 뿐이라 정상적으로는 항상 성공한다).
+            _hintCount = HintStore.Consume();
+            UpdateHintBadge();
 
             _selectedIndex = null; // 유저가 이미 뭔가 골라둔 상태였으면 힌트 실행으로 대체.
             PerformMove(move.Value.FromIndex, move.Value.ToIndex);
@@ -484,7 +565,10 @@ namespace ColorSort.UI
             }
 
             _undoButton.interactable = _session.CanUndo;
-            _hintButton.interactable = !_session.IsCleared && !_hintInFlight; // 계산 중엔 중복 클릭 방지.
+            // 계산 중엔 중복 클릭 방지, 남은 힌트가 0개면 다 쓴 것 — 배지에 이미 0으로
+            // 보이고 있으니 버튼도 같이 비활성화한다(광고로 충전하는 흐름은 아직 없음,
+            // HintStore 참고).
+            _hintButton.interactable = !_session.IsCleared && !_hintInFlight && _hintCount > 0;
             // 다 열렸거나(용량 소진) 광고가 아직 준비 안 됐으면 못 누르게 — 광고 로드
             // 실패/시청 중에도 이 값이 자동으로 false가 돼서 버튼이 비활성화된다.
             _addContainerButton.interactable = _session.CanUnlockBonusContainer &&

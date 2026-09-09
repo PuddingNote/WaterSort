@@ -60,7 +60,10 @@ namespace ColorSort.UI
                 catch (System.Exception e) { Debug.LogException(e); }
             }
 
-            async Task ShowGameAsync(int? overrideRoundId = null)
+            // showHintChargeAnimation: 이 라운드로 넘어오면서 힌트가 실제로 1개
+            // 충전됐으면 true — GameView가 배지 위에 "+1" 연출을 튼다
+            // (PlayStageClearThenAdvance 참고, 타이틀에서 바로 시작할 땐 항상 false).
+            async Task ShowGameAsync(int? overrideRoundId = null, bool showHintChargeAnimation = false)
             {
                 if (transitioning) return;
                 transitioning = true;
@@ -109,7 +112,7 @@ namespace ColorSort.UI
                     {
                         OnBack = ShowTitle,
                         OnCleared = () => PlayStageClearThenAdvance()
-                    });
+                    }, showHintChargeAnimation);
                     activeScreen = (RectTransform)gameView.transform;
                 }
                 finally
@@ -127,10 +130,27 @@ namespace ColorSort.UI
                 roundId++;
                 ProgressStore.SaveNextRoundId(roundId);
 
+                // 힌트 충전(GameDesign.md 확정, 2026-09-09 재확정 — 원래 5라운드마다
+                // 1회 → 라운드마다 1회 → 3라운드마다 1회로 두 번 더 바뀜): 최대
+                // HintStore.MaxHints개. roundId를 방금 늘렸으니 "지금까지 클리어한
+                // 라운드 수"는 roundId-1 — 그 값이 3의 배수가 되는 매 순간(3, 6, 9…
+                // 라운드를 막 클리어했을 때)마다 충전한다. 이미 최대치(5개)라
+                // AddCharge가 실제로는 안 늘렸을 수도 있으니, 늘어났을 때만 다음
+                // GameView에 "+1" 연출을 틀라고 알려준다(실제로 아무 변화도 없는데
+                // +1이 뜨면 오히려 혼란스러움).
+                bool shouldCharge = (roundId - 1) % 3 == 0;
+                bool hintCharged = false;
+                if (shouldCharge)
+                {
+                    int before = HintStore.LoadCount();
+                    int after = HintStore.AddCharge();
+                    hintCharged = after > before;
+                }
+
                 var overlay = StageClearOverlay.Show(canvas.transform);
                 try
                 {
-                    await StageClearOverlay.Play(overlay, () => ShowGameAsync());
+                    await StageClearOverlay.Play(overlay, () => ShowGameAsync(showHintChargeAnimation: hintCharged));
                 }
                 catch (System.Exception e)
                 {

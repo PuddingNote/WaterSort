@@ -134,6 +134,44 @@ namespace ColorSort.UI
         public const float BottleSelectLiftHeight = 32f;
         public const float BottleSelectLiftTime = 0.15f;
 
+        // 힌트 버튼 우측 상단에 얹는 "남은 힌트 개수" 배지(2026-09-09 확정, 사이즈는
+        // 같은 날 사용자 피드백으로 40→52 확대) — 검은 텍스트(TextOnButton 재사용,
+        // 밝은 배경 위 대비용으로 이미 있던 색). 버튼(ButtonHeightSmall=140)보다
+        // 훨씬 작게, 모서리에 살짝만 걸치는 정도로 — 바로 옆(16px 간격)에 붙은
+        // 병 추가 버튼과 안 겹치게 너무 많이 밀어내지 않는다(HintBadgeOffset 참고).
+        public const float HintBadgeSize = 52f;
+        public const float HintBadgeFontSize = 36f;
+        public static readonly Vector2 HintBadgeOffset = new Vector2(-13f, -13f);
+
+        // 배지 배경 색 — 평소엔 흰색, 최대치(HintStore.MaxHints)에 도달하면 노란색으로
+        // 바뀌어서 "꽉 찼다"를 알려준다(2026-09-09 확정 — 처음엔 숫자 대신 "MAX"
+        // 텍스트를 넣었는데, 좁은 원 안이라 잘 안 보인다는 피드백으로 색 변경 방식으로
+        // 교체. 숫자는 항상 그대로 보여주고 배경색만 바뀜).
+        public static readonly Color HintBadgeNormalColor = Color.white;
+        public static readonly Color HintBadgeFullColor = new Color32(0xFF, 0xC8, 0x3D, 0xFF);
+
+        // 힌트가 충전될 때(3라운드 클리어마다) 힌트 버튼 위에 잠깐 떴다 사라지는
+        // "+1" 텍스트(2026-09-09 확정) — FloatingHintCharge 참고. 등장은 즉시
+        // (페이드인 없음), 그 상태로 위로 떠오르면서 동시에 투명해지다가 사라진다
+        // (사용자 확정: "나타났다가 위로 서서히 올라가면서 투명해지면서 사라지도록").
+        // 처음엔 배지(버튼 오른쪽 위 모서리)를 기준으로 떴었는데, 그러면 위치가
+        // 너무 오른쪽으로 치우쳐 보인다는 피드백으로 힌트 버튼 전체를 기준(=버튼
+        // 위쪽 가운데)으로 바꿨다. 색도 처음엔 배지와 같은 노란색이었는데, 흰색이
+        // 더 잘 보인다는 피드백으로 TextPrimary(흰색)로 바꿨다.
+        //
+        // 시작 위치도 재차 조정(2026-09-09) — 버튼 바로 위 모서리에 딱 붙어서
+        // 시작하면 배지랑 너무 가까워 보인다고, 사용자가 참고 스크린샷(버튼보다
+        // 확연히 위쪽 지점을 표시)을 보내와서 StartExtraRiseY만큼 위로 더 띄운
+        // 지점에서 시작하게 했다. 떠오르는 거리(RiseDistance)는 시작점이 이미
+        // 높아진 만큼 조금 줄였다(사용자 확정: "지금보다 조금만 더 짧게").
+        public const float FloatingHintChargeFontSize = 44f;
+        public const float FloatingHintChargeWidth = 160f;
+        public const float FloatingHintChargeHeight = 70f;
+        public const float FloatingHintChargeStartExtraRiseY = 60f;
+        public const float FloatingHintChargeRiseDistance = 50f;
+        public const float FloatingHintChargeDuration = 1f;
+        public static readonly Color FloatingHintChargeColor = TextPrimary;
+
         // 붓기 애니메이션 규격 — GameDesign.md TBD 확정(2026-08-25): 총 소요시간 약 1초.
         // 실제 물병 게임처럼 붓는 병이 도착 병 위로 들려 올라가 기울여지고, 다 부으면
         // 제자리로 돌아온다(들어올리기/복귀에 나머지 시간을 나눠 쓴다). 입력은 막지
