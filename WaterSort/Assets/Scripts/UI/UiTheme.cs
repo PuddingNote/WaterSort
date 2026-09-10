@@ -278,8 +278,13 @@ namespace ColorSort.UI
         // 화면 밖으로 안 나가고 옆 버튼과도 안 겹치게.
         public const float WatchAdBadgeSize = 68f;
         public const float WatchAdBadgeBgSize = 80f; // 아이콘(68) 뒤에 여백 있게 조금 더 크게.
-        public static readonly Vector2 WatchAdBadgeOffset = new Vector2(-14f, 14f); // 오른쪽 아래(anchor 1,0) 기준.
+        public static readonly Vector2 WatchAdBadgeOffset = new Vector2(-14f, 14f); // 병 추가 버튼: 오른쪽 아래(anchor 1,0) 기준.
         public static readonly Color WatchAdBadgeBgColor = new Color32(0x6B, 0x9E, 0xB7, 0xFF);
+
+        // 힌트가 0개일 때 힌트 버튼 위에 뜨는 같은 광고 배지 — 힌트 버튼 중앙(anchor
+        // 0.5,0.5) 기준으로 왼쪽 위로 띄우고 살짝 기울인다(2026-09-11 사용자 지정값).
+        public static readonly Vector2 HintAdBadgeOffset = new Vector2(-50f, 50f);
+        public const float HintAdBadgeRotationZ = 22f;
 
         // 배지 배경 색 — 평소엔 흰색, 최대치(HintStore.MaxHints)에 도달하면 노란색으로
         // 바뀌어서 "꽉 찼다"를 알려준다(2026-09-09 확정 — 처음엔 숫자 대신 "MAX"

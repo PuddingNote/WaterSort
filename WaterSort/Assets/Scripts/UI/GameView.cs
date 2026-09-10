@@ -45,6 +45,14 @@ namespace ColorSort.UI
         private TextMeshProUGUI _hintCountText;
         private Image _hintBadgeImage;
         private RectTransform _watchAdBadge; // 병 추가 버튼 위 "광고 봐야 함" 이미지 배지.
+        private RectTransform _hintAdBadge;  // 힌트가 0개일 때 힌트 버튼 위에 뜨는 같은 배지.
+
+        /// <summary>이번 라운드에 "광고 시청 → 힌트 1개"를 이미 한 번 썼는지. 라운드가
+        /// 바뀌면 GameView 자체가 새로 만들어져서 자연히 false로 돌아가고, 새로고침
+        /// (RESET)에서는 GameView가 유지되므로 OnResetClicked에서 직접 false로 되돌린다.
+        /// true면 힌트가 다시 0이 돼도 광고 흐름을 안 열고 버튼을 그냥 비활성화한다
+        /// (사용자 확정, 2026-09-11).</summary>
+        private bool _adHintUsedThisRound;
 
         private int? _selectedIndex;
         private RectTransform _activeDialog;
@@ -125,6 +133,7 @@ namespace ColorSort.UI
             // 그려준다. static 이벤트라 OnDestroy에서 반드시 구독 해지해야 한다.
             RewardedAdService.AdReady += OnRewardedAdReady;
             RewardedAdService.Preload(AdUnitIds.BonusContainerRewarded);
+            RewardedAdService.Preload(AdUnitIds.HintRewarded); // 힌트 0개일 때 쓰는 광고도 미리(지금은 같은 단위라 중복 무시됨).
 
             RebuildBottles();
         }
@@ -140,7 +149,7 @@ namespace ColorSort.UI
 
         private void OnRewardedAdReady(string adUnitId)
         {
-            if (adUnitId != AdUnitIds.BonusContainerRewarded) return;
+            if (adUnitId != AdUnitIds.BonusContainerRewarded && adUnitId != AdUnitIds.HintRewarded) return;
             RefreshHighlights(); // 로드가 막 끝난 순간 버튼이 비활성 상태로 멈춰 있지 않게.
         }
 
@@ -237,28 +246,30 @@ namespace ColorSort.UI
             _hintButton = UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.HintIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnHintClicked, fallbackText: "HINT");
             BuildHintCountBadge(_hintButton.transform);
             UpdateHintBadge(); // _hintCount는 Initialize 맨 앞에서 이미 HintStore.LoadCount()로 읽어 둠.
+            _hintAdBadge = CreateWatchAdBadge(_hintButton.transform,
+                anchorPivot: new Vector2(0.5f, 0.5f), offset: UiTheme.HintAdBadgeOffset, rotationZ: UiTheme.HintAdBadgeRotationZ);
             _addContainerButton = UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.AddContainerIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "ADD");
-            BuildWatchAdBadge(_addContainerButton.transform);
+            _watchAdBadge = CreateWatchAdBadge(_addContainerButton.transform,
+                anchorPivot: new Vector2(1f, 0f), offset: UiTheme.WatchAdBadgeOffset, rotationZ: 0f);
         }
 
-        /// <summary>병 추가 버튼 오른쪽 아래 모서리에 "광고를 봐야 한다"를 텍스트가 아니라
-        /// 그림으로 알리는 배지(watch_ad.png) + 그 뒤 둥근 사각형 배경
-        /// (white_square_rounded_128, 6B9EB7 — 아이콘만 있으면 심심해서, 2026-09-11
-        /// 사용자 확정). watch_ad 그림이 없으면(null) 배지 자체를 안 만든다 — 버튼
-        /// 기능엔 지장 없다. 표시 여부는 RefreshHighlights가 "아직 열 칸이 남았는지"
-        /// (_session.CanUnlockBonusContainer)로 켠다/끈다.</summary>
-        private void BuildWatchAdBadge(Transform addButtonTransform)
+        /// <summary>"광고를 봐야 한다"를 텍스트가 아니라 그림으로 알리는 배지 —
+        /// watch_ad.png(필름 클래퍼) + 그 뒤 둥근 사각형 배경(white_square_rounded_128,
+        /// 6B9EB7 틴트). 병 추가 버튼(오른쪽 아래 모서리)과 힌트 버튼(중앙에서 왼쪽 위로
+        /// 크게 띄우고 기울임) 양쪽에서 쓴다(2026-09-11). watch_ad 그림이 없으면 null을
+        /// 돌려준다 — 그럼 호출부의 배지 참조가 null이라 표시 토글이 조용히 무시되고
+        /// 버튼 기능엔 지장 없다. 배경을 바깥 컨테이너로 삼고 아이콘을 그 자식으로 둬서
+        /// SetActive 한 번에 같이 켜지고 꺼진다.</summary>
+        private RectTransform CreateWatchAdBadge(Transform parent, Vector2 anchorPivot, Vector2 offset, float rotationZ)
         {
             var sprite = UiTheme.WatchAdBadgeSprite;
-            if (sprite == null) return;
+            if (sprite == null) return null;
 
-            // 배경(있으면) — 이게 바깥 컨테이너 역할도 겸한다. 아이콘을 이 밑에 두면
-            // SetActive 한 번으로 배경+아이콘이 같이 켜지고 꺼진다.
             var bgSprite = UiTheme.WatchAdBadgeBgSprite;
             RectTransform outer;
             if (bgSprite != null)
             {
-                var bg = UiFactory.CreateImage(addButtonTransform, "WatchAdBadge", bgSprite, UiTheme.WatchAdBadgeBgColor);
+                var bg = UiFactory.CreateImage(parent, "WatchAdBadge", bgSprite, UiTheme.WatchAdBadgeBgColor);
                 bg.type = Image.Type.Sliced; // 둥근 모서리 유지(9-slice).
                 bg.raycastTarget = false;
                 outer = (RectTransform)bg.transform;
@@ -266,14 +277,14 @@ namespace ColorSort.UI
             }
             else
             {
-                outer = UiFactory.CreatePanel(addButtonTransform, "WatchAdBadge", Color.clear);
+                outer = UiFactory.CreatePanel(parent, "WatchAdBadge", Color.clear);
                 outer.GetComponent<Image>().raycastTarget = false;
                 outer.sizeDelta = new Vector2(UiTheme.WatchAdBadgeSize, UiTheme.WatchAdBadgeSize);
             }
-            outer.anchorMin = outer.anchorMax = new Vector2(1f, 0f); // 버튼 오른쪽 아래 모서리.
+            outer.anchorMin = outer.anchorMax = anchorPivot;
             outer.pivot = new Vector2(0.5f, 0.5f);
-            outer.anchoredPosition = UiTheme.WatchAdBadgeOffset;
-            _watchAdBadge = outer;
+            outer.anchoredPosition = offset;
+            outer.localRotation = Quaternion.Euler(0f, 0f, rotationZ);
 
             var icon = UiFactory.CreateImage(outer, "Icon", sprite, Color.white);
             icon.type = Image.Type.Simple; // 원본 그림 그대로.
@@ -284,6 +295,7 @@ namespace ColorSort.UI
             iconRect.pivot = new Vector2(0.5f, 0.5f);
             iconRect.sizeDelta = new Vector2(UiTheme.WatchAdBadgeSize, UiTheme.WatchAdBadgeSize);
             iconRect.anchoredPosition = Vector2.zero;
+            return outer;
         }
 
         /// <summary>힌트 버튼 우측 상단에 얹는 원형 배지(사용자가 다른 게임 스크린샷을
@@ -488,6 +500,7 @@ namespace ColorSort.UI
             _pourAnimator.CancelAll();
             _session.ResetToInitial();
             _selectedIndex = null;
+            _adHintUsedThisRound = false; // 새로고침하면 "광고 보고 힌트" 기회가 다시 생긴다(사용자 확정, 2026-09-11).
             RefreshAllBottles();
         }
 
@@ -515,9 +528,20 @@ namespace ColorSort.UI
         /// 않는다(사용자 확정: 계산 중에도 다른 병 조작은 계속 가능해야 함).</summary>
         private async void OnHintClicked()
         {
-            // _hintCount <= 0이면 버튼이 이미 비활성화돼 있어야 정상 경로에서는 여기
-            // 안 오지만(RefreshHighlights의 interactable 조건), 방어적으로 한 번 더 막는다.
-            if (_hintInFlight || _hintCount <= 0) return;
+            if (_hintInFlight) return;
+
+            // 힌트가 0개면: 이번 라운드에 아직 광고를 안 썼으면 "광고 보고 힌트 1개?"
+            // 확인 창을 띄우고(Yes → ShowHintAd), 이미 썼으면 아무것도 안 한다(버튼이
+            // 비활성화돼 있어야 정상이지만 방어적으로 막음, 2026-09-11 사용자 확정).
+            if (_hintCount <= 0)
+            {
+                if (_adHintUsedThisRound || _activeDialog != null) return;
+                _activeDialog = ConfirmDialog.Show(_canvasRoot, "Watch Ad\nto get 1 hint?",
+                    "NO", () => _activeDialog = null,
+                    "Yes", () => { _activeDialog = null; ShowHintAd(); });
+                return;
+            }
+
             _hintInFlight = true;
             RefreshHighlights(); // 힌트 버튼을 계산하는 동안 비활성화된 걸로 보여줌.
             var loading = HintLoadingOverlay.Show(_canvasRoot);
@@ -570,6 +594,38 @@ namespace ColorSort.UI
 
             _selectedIndex = null; // 유저가 이미 뭔가 골라둔 상태였으면 힌트 실행으로 대체.
             PerformMove(move.Value.FromIndex, move.Value.ToIndex);
+        }
+
+        /// <summary>힌트가 0개일 때 확인 창에서 Yes를 눌렀을 때만 부른다 — 보상형 광고를
+        /// 끝까지 봐야 힌트가 1개 생기고, 그 시점에 "이번 라운드 광고 힌트 사용함"으로
+        /// 잠근다(라운드당 1번, 새로고침 시 OnResetClicked가 다시 풀어 줌). 중간에 닫거나
+        /// 광고가 준비 안 됐으면 대체 지급 없이 조용히 넘어간다(병 추가 광고와 같은 정책).</summary>
+        private void ShowHintAd()
+        {
+            if (_adHintUsedThisRound || _hintCount > 0) return;
+
+            RewardedAdService.Show(
+                AdUnitIds.HintRewarded,
+                onRewardEarned: () =>
+                {
+                    if (this == null) return; // 광고 보는 동안 화면이 없어졌을 수 있음.
+                    _adHintUsedThisRound = true;
+                    _hintCount = HintStore.AddCharge(); // 0 → 1(상한 MaxHints까지지만 여기선 항상 0에서 옴).
+                    UpdateHintBadge();
+                    RefreshHighlights();
+                },
+                onClosedWithoutReward: () =>
+                {
+                    Debug.Log("[GameView] 힌트 광고: 끝까지 안 봄 — 힌트 없음");
+                },
+                onUnavailable: () =>
+                {
+                    Debug.Log("[GameView] 힌트 광고: 아직 준비 안 됨");
+                    if (this == null) return;
+                    RefreshHighlights();
+                });
+
+            RefreshHighlights(); // 광고 표시/재로드 시작 — 그동안 버튼을 비활성 상태로.
         }
 
         /// <summary>병 추가(광고 보상) 버튼 — 누르면 바로 광고가 아니라 먼저 확인 창을
@@ -668,10 +724,18 @@ namespace ColorSort.UI
             }
 
             _undoButton.interactable = _session.CanUndo;
-            // 계산 중엔 중복 클릭 방지, 남은 힌트가 0개면 다 쓴 것 — 배지에 이미 0으로
-            // 보이고 있으니 버튼도 같이 비활성화한다(광고로 충전하는 흐름은 아직 없음,
-            // HintStore 참고).
-            _hintButton.interactable = !_session.IsCleared && !_hintInFlight && _hintCount > 0;
+            // 힌트가 남아있으면 평소대로. 0개면 "이번 라운드에 아직 광고 힌트를 안 썼고
+            // 광고가 준비됐을 때"만 눌러서 확인 창(→ 광고 → 힌트 1개)을 열 수 있다 —
+            // 이미 썼으면(_adHintUsedThisRound) 그냥 비활성(새로고침하면 다시 풀림,
+            // OnResetClicked). 병 추가 버튼이 광고 로드 상태에 따라 켜졌다 꺼졌다 하는
+            // 것과 같은 방식.
+            bool canAdHint = _hintCount <= 0 && !_adHintUsedThisRound
+                && RewardedAdService.IsReady(AdUnitIds.HintRewarded);
+            _hintButton.interactable = !_session.IsCleared && !_hintInFlight && (_hintCount > 0 || canAdHint);
+            // 힌트 버튼 위 광고 배지: 힌트가 0개이고 이번 라운드에 아직 광고 힌트를
+            // 안 썼을 때만 보인다(광고 로드 여부와는 무관 — 병 추가 배지와 같은 규칙).
+            if (_hintAdBadge != null)
+                _hintAdBadge.gameObject.SetActive(_hintCount <= 0 && !_adHintUsedThisRound);
             // 다 열렸거나(용량 소진) 광고가 아직 준비 안 됐으면 못 누르게 — 광고 로드
             // 실패/시청 중에도 이 값이 자동으로 false가 돼서 버튼이 비활성화된다.
             _addContainerButton.interactable = _session.CanUnlockBonusContainer &&

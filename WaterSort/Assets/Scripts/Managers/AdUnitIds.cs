@@ -26,15 +26,24 @@ namespace ColorSort.Managers
         // Google 공식 테스트용 전면 광고 ID(Android, 고정 공용 값).
         private const string InterstitialTest = "ca-app-pub-3940256099942544/1033173712";
 
+        /// <summary>힌트가 0개일 때 힌트 버튼을 누르면 뜨는 보상형 광고(1회 시청 = 힌트
+        /// 1개, 라운드당 1번, 2026-09-11). 아직 전용 광고 단위를 안 팠으므로 지금은 병
+        /// 추가와 같은 ID를 쓴다 — 나중에 AdMob 콘솔에서 힌트용 단위를 만들면 아래
+        /// HintRewardedProd만 그 값으로 바꾸면 나머지 코드는 그대로 동작한다.</summary>
+        private const string HintRewardedProd = BonusContainerRewardedProd;
+        private const string HintRewardedTest = BonusContainerRewardedTest;
+
         /// <summary>에디터/개발 빌드에서는 자동으로 테스트 ID를, 실제 출시 빌드에서만
         /// 진짜 ID를 쓴다 — 손으로 바꿨다가 되돌리는 걸 깜빡해서 테스트 트래픽이
         /// 실제 광고 단위로 나가 버리는 사고를 원천 차단한다(AdMob 정책상 실제 ID로
         /// 테스트하면 무효 트래픽으로 계정에 불이익이 갈 수 있음).</summary>
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         public const string BonusContainerRewarded = BonusContainerRewardedTest;
+        public const string HintRewarded = HintRewardedTest;
         public const string Interstitial = InterstitialTest;
 #else
         public const string BonusContainerRewarded = BonusContainerRewardedProd;
+        public const string HintRewarded = HintRewardedProd;
         public const string Interstitial = InterstitialProd;
 #endif
     }

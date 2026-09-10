@@ -1051,10 +1051,8 @@ Clear 연출을 나중에서야 구현했던 것과 같은 패턴 — 문서에�
 
 **힌트 버튼 비활성화**: `RefreshHighlights`의 `_hintButton.interactable`
 조건에 `_hintCount > 0`을 추가했다. 0개가 되면 다 쓴 것 — 그 이후 보상형
-광고로 재충전하는 흐름은 GameDesign.md에 이미 정책만 있고 아직 연동 안
-했다(병 추가 버튼 때와 같은 이유로 사용자가 "나머지는 나중에 요청하겠다"고
-확정한 항목, 아래 "아직 정하지 않은 것" 참고) — 그래서 지금은 그냥 버튼이
-막힌다.
+광고로 재충전하는 흐름은 아래 "힌트 0개일 때 보상형 광고로 1개 획득"에서
+연동했다.
 
 **배지 UI**: 새 스프라이트를 만들지 않고 기존 `UiTheme.LoadingSpinnerSprite`
 (로딩 스피너와 같은 원형 그림, `Resources/Sprites/circle.png`)를 재사용했다
@@ -1647,6 +1645,32 @@ ON/OFF 토글 버튼 배경은 `UiSkin.ToggleButtonBackground`(Inspector 슬롯,
 `RefreshHighlights`가 `_session.CanUnlockBonusContainer`(아직 열 칸이 남았는지)로
 켠다/끈다 — 광고 로드 여부와는 무관.
 
+## 힌트 0개일 때 보상형 광고로 1개 획득 (2026-09-11)
+
+힌트가 0개가 되면 그동안은 힌트 버튼이 그냥 비활성화됐는데, 이제 **광고를
+보면 1개 받는** 흐름을 붙였다 — 병 추가 버튼과 완전히 같은 패턴(누르면
+`ConfirmDialog` "Watch Ad\nto get 1 hint?" → Yes → `RewardedAdService.Show`
+→ `onRewardEarned`에서 `HintStore.AddCharge()`로 0→1).
+
+- **광고 단위**: `AdUnitIds.HintRewarded` — 아직 전용 단위를 안 파서 지금은
+  `BonusContainerRewarded`와 같은 ID(상수만 따로 둠, 콘솔에서 힌트용 단위
+  만들면 `HintRewardedProd`만 바꾸면 됨). `GameView.Initialize`에서 같이
+  `Preload`, `OnRewardedAdReady`도 이 ID를 같이 받는다.
+- **버튼 활성 조건**: `_hintCount > 0`이거나 `(_hintCount <= 0 &&
+  !_adHintUsedThisRound && RewardedAdService.IsReady(HintRewarded))`. 병 추가
+  버튼이 광고 로드 상태에 따라 켜졌다 꺼졌다 하는 것과 같은 방식.
+- **라운드당 1번**: `GameView._adHintUsedThisRound`(bool, 미저장). 라운드가
+  바뀌면 `GameView`가 새로 만들어져 자연히 false로 돌아가고, `onRewardEarned`
+  시점에 true로 잠근다. 이미 true면 힌트가 다시 0이 돼도 확인 창을 안 열고
+  버튼을 그냥 비활성화한다. **새로고침(RESET)** 은 `GameView`가 유지되므로
+  `OnResetClicked`에서 명시적으로 false로 되돌려 기회를 되살린다(Undo는 안 건드림).
+- **힌트 버튼 광고 배지**: 병 추가 버튼과 같은 `watch_ad` 배지(같은
+  `CreateWatchAdBadge` 헬퍼로 생성, `BuildWatchAdBadge`에서 이름 바꿈)를 힌트
+  버튼 중앙 기준 `HintAdBadgeOffset`(-122,122)에 z축 `HintAdBadgeRotationZ`(22°)
+  기울여 얹는다. 표시 조건은 `_hintCount <= 0 && !_adHintUsedThisRound`
+  (광고 로드 여부와 무관) — 광고로 힌트를 얻으면 `_hintCount`가 1이 되면서
+  자동으로 사라진다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접
@@ -1655,6 +1679,6 @@ ON/OFF 토글 버튼 배경은 `UiSkin.ToggleButtonBackground`(Inspector 슬롯,
 - 강제 업데이트/개인정보처리방침용 허브 저장소(`{계정}.github.io`) 준비
   시점은 아직 안 다뤘다 — 필요해지는 시점에 `개인정보처리방침_재사용_가이드.md`를
   다시 참고해 진행한다. 광고 SDK는 AdMob으로 확정됐다(아래 항목 참고).
-- 힌트 버튼의 광고 연동은 아직이다 — 병 추가 쪽에서 만들어 둔
-  `RewardedAdService`/`AdUnitIds`를 그대로 재사용할 수 있다(사용자가
-  "나머지는 나중에 요청하겠다"고 확정, 2026-09-08).
+- 힌트 광고(`HintRewarded`)는 지금 병 추가와 같은 AdMob 광고 단위를 쓴다 —
+  분리하려면 콘솔에서 힌트용 보상형 단위를 만들고 `AdUnitIds.HintRewardedProd`만
+  그 값으로 바꾸면 된다(코드 흐름은 그대로).
