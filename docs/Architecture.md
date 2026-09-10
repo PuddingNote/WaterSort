@@ -848,9 +848,19 @@ resolve해야 함) 파일만 편집하는 방식으로는 설치할 수 없다. 
   `Preload`/`Show`). 병 추가 전용으로 짜지 않고 재사용 가능하게 만들었다
   — "나머지 버튼은 나중에" 요청이 이미 예고돼 있었기 때문.
 
+**확인 창 추가 (2026-09-10)**: 버튼을 누르면 곧바로 광고가 뜨는 게 아니라,
+먼저 "Watch AD\nto get extra bottle?" 확인 창(뒤로가기 창과 같은
+`ConfirmDialog`, 왼쪽 `NO` / 오른쪽 `Yes`)을 띄운다. 그때 제목↔버튼 간격이
+빡빡해서 `ConfirmDialog`의 제목/버튼 y오프셋을 -90/70 → -64/44로 벌렸다
+(세 확인 창 전부 공용). `OnAddContainerClicked`는
+이제 `_activeDialog`에 이 창만 띄우고, `Yes` 콜백에서 `ShowBonusContainerAd`를
+불러야 실제 `RewardedAdService.Show`가 돈다(광고 재생 로직 자체는 그대로
+`ShowBonusContainerAd`로 분리). `_activeDialog` 가드를 공유해서 뒤로가기
+창과 동시에 뜨지 않고, Escape로도 닫힌다.
+
 **흐름**: `GameView.Initialize`가 라운드 시작 시 `Preload`를 미리 불러서
 버튼을 누르는 순간 바로 뜨게 해 둔다(로드는 비동기라 탭한 뒤에야 요청하면
-그 자리에서 못 보여줄 수 있음). `OnAddContainerClicked`는 이제
+그 자리에서 못 보여줄 수 있음). `ShowBonusContainerAd`는
 `RewardedAdService.Show`를 부르고, **광고를 끝까지 다 봐야만**
 `onRewardEarned` 콜백 안에서 `TryUnlockBonusContainer`를 부른다 — 중간에
 닫으면(`onClosedWithoutReward`) 조용히 아무 일도 안 하고, 광고가 아직

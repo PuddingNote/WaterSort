@@ -482,15 +482,28 @@ namespace ColorSort.UI
             PerformMove(move.Value.FromIndex, move.Value.ToIndex);
         }
 
-        /// <summary>병 추가(광고 보상) — 보상형 광고를 끝까지 봐야 매 라운드 마지막 병
-        /// (RoundBuilder가 항상 붙여 둠)의 잠긴 칸이 1칸 열린다(사용자 확정,
-        /// 2026-09-08 — 그전까지는 누르면 바로 적용되는 임시 동작이었음).
-        /// 광고가 아직 안 떴거나(로드 전) 표시 자체가 실패하면 대체 지급 없이
-        /// 조용히 아무 일도 안 일어난다(GameDesign.md "광고 미시청/로드 실패 시"
-        /// 확정 정책). 내용물이 아니라 "그 병이 얼마나 열려 있는지"만 바뀌는
-        /// 거라 붓기 연출과는 무관 — 애니메이션 진행 중이어도 아무 때나 눌러도
-        /// 안전하다.</summary>
+        /// <summary>병 추가(광고 보상) 버튼 — 누르면 바로 광고가 아니라 먼저 확인 창을
+        /// 띄운다(뒤로가기 창과 같은 ConfirmDialog, 왼쪽 NO / 오른쪽 Yes). Yes를
+        /// 눌러야 <see cref="ShowBonusContainerAd"/>가 실제 광고를 재생한다(사용자
+        /// 확정, 2026-09-10 — 그전까지는 누르면 광고가 곧바로 떴음).</summary>
         private void OnAddContainerClicked()
+        {
+            if (!_session.CanUnlockBonusContainer) return;
+            if (_activeDialog != null) return; // 이미 다른 창(뒤로가기 등)이 떠 있으면 무시.
+
+            _activeDialog = ConfirmDialog.Show(_canvasRoot, "Watch AD\nto get extra bottle?",
+                "NO", () => _activeDialog = null,
+                "Yes", () => { _activeDialog = null; ShowBonusContainerAd(); });
+        }
+
+        /// <summary>실제 보상형 광고 재생 — 병 추가 확인 창에서 Yes를 눌렀을 때만 부른다.
+        /// 광고를 끝까지 봐야 매 라운드 마지막 병(RoundBuilder가 항상 붙여 둠)의 잠긴
+        /// 칸이 1칸 열린다(사용자 확정, 2026-09-08). 광고가 아직 안 떴거나(로드 전)
+        /// 표시 자체가 실패하면 대체 지급 없이 조용히 아무 일도 안 일어난다
+        /// (GameDesign.md "광고 미시청/로드 실패 시" 확정 정책). 내용물이 아니라
+        /// "그 병이 얼마나 열려 있는지"만 바뀌는 거라 붓기 연출과는 무관 — 애니메이션
+        /// 진행 중이어도 안전하다.</summary>
+        private void ShowBonusContainerAd()
         {
             if (!_session.CanUnlockBonusContainer) return;
 

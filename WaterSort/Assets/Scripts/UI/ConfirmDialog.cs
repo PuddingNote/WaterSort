@@ -39,13 +39,15 @@ namespace ColorSort.UI
             titleRect.anchorMin = titleRect.anchorMax = new Vector2(0.5f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
             titleRect.sizeDelta = new Vector2(UiTheme.DialogWidth - 80f, 130f);
-            titleRect.anchoredPosition = new Vector2(0f, -90f);
+            // 제목은 위로, 버튼 줄은 아래로 조금씩 벌려서 둘 사이 간격을 넓혔다
+            // (2026-09-10 사용자 요청 — 예전엔 -90 / 70이라 간격이 20px로 빡빡했음).
+            titleRect.anchoredPosition = new Vector2(0f, -64f);
 
             var buttonsRow = UiFactory.CreatePanel(panel, "ButtonsRow", Color.clear);
             buttonsRow.anchorMin = buttonsRow.anchorMax = new Vector2(0.5f, 0f);
             buttonsRow.pivot = new Vector2(0.5f, 0f);
             buttonsRow.sizeDelta = new Vector2(UiTheme.DialogWidth, UiTheme.DialogButtonHeight);
-            buttonsRow.anchoredPosition = new Vector2(0f, 70f);
+            buttonsRow.anchoredPosition = new Vector2(0f, 44f);
             UiFactory.AddHorizontalLayout(buttonsRow, spacing: UiTheme.PanelSpacing, forceExpandWidth: false, forceExpandHeight: true);
 
             UiFactory.CreateButton(buttonsRow, leftLabel, UiTheme.DialogButtonWidth, UiTheme.DialogButtonHeight, UiTheme.SecondaryColor,
