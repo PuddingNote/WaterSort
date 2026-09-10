@@ -42,6 +42,12 @@ namespace ColorSort.UI
         /// (매 라운드 딱 하나뿐인 보너스 병만 해당).</summary>
         private RectTransform _lockedClip;
 
+        /// <summary>_lockedClip과 짝 — 열린 높이만큼만 원래 밝기(흰색, 알파 1)로 덮는
+        /// 유리 하이라이트 복사본. 하이라이트 그라디언트는 세로로 균일해서 위 앵커만
+        /// 잘라도 안 찌그러지므로 Visual처럼 Mask는 안 쓰고 ApplyLockedClipHeight가
+        /// anchorMax.y만 조절한다. 다 열린 병에선 null.</summary>
+        private RectTransform _unlockedHighlightRect;
+
         /// <summary>물+마스크 전용 회전 축 — BottleMask가 있을 때만 만들어진다(null이면
         /// 없음). Visual(병 그림)의 형제로 따로 둬서, 같은 각도로 같이 기울되(SetTilt),
         /// 좌우 위치는 Visual과 독립적으로 조금씩 밀 수 있게(SetWaterHorizontalOffset)
@@ -277,6 +283,27 @@ namespace ColorSort.UI
             highlightRect.anchorMax = FillArea.anchorMax;
             highlightRect.offsetMin = Vector2.zero;
             highlightRect.offsetMax = Vector2.zero;
+
+            // 광고 보상으로 아직 일부만 열린 병(_lockedClip이 있으면 = 그 병)은 유리
+            // 하이라이트도 Visual과 똑같이 처리한다 — 통째로 흐리게(LockedHighlightAlpha)
+            // 깔고, 그 위에 열린 높이만큼만 원래 밝기(흰색, 알파 1) 복사본을 덧씌워
+            // "아래부터 선명해지는" 모습을 맞춘다. Visual은 병 그림에 세로 굴곡이 있어
+            // Mask+고정크기로 안 찌그러지게 잘랐지만, 하이라이트 그라디언트는 세로로
+            // 균일(1px 높이 텍스처를 늘린 것)해서 위 앵커만 잘라도 아래 밴드가 그대로다
+            // — 그래서 Mask 없이 ApplyLockedClipHeight가 anchorMax.y만 조절한다.
+            if (_lockedClip != null)
+            {
+                var dimHighlight = highlight.color;
+                dimHighlight.a = UiTheme.LockedHighlightAlpha;
+                highlight.color = dimHighlight;
+
+                var unlockedHighlight = UiFactory.CreateImage(
+                    fillAreaParent, "UnlockedHighlight", UiTheme.GlassHighlightSprite, Color.white);
+                unlockedHighlight.type = Image.Type.Simple;
+                unlockedHighlight.raycastTarget = false;
+                _unlockedHighlightRect = (RectTransform)unlockedHighlight.transform;
+                ApplyLockedClipHeight(unlockedCapacity);
+            }
         }
 
         /// <summary>bottleSprite와 maskSprite가 둘 다 있고 같은 크기의 원본 텍스처에서
@@ -328,11 +355,28 @@ namespace ColorSort.UI
 
         private void ApplyLockedClipHeight(int unlockedCapacity)
         {
-            if (_lockedClip == null) return;
             float fraction = Capacity > 0 ? Mathf.Clamp01((float)unlockedCapacity / Capacity) : 0f;
-            _lockedClip.anchorMin = new Vector2(0f, 0f);
-            _lockedClip.anchorMax = new Vector2(1f, fraction);
-            _lockedClip.offsetMin = _lockedClip.offsetMax = Vector2.zero;
+
+            if (_lockedClip != null)
+            {
+                _lockedClip.anchorMin = new Vector2(0f, 0f);
+                _lockedClip.anchorMax = new Vector2(1f, fraction);
+                _lockedClip.offsetMin = _lockedClip.offsetMax = Vector2.zero;
+            }
+
+            if (_unlockedHighlightRect != null)
+            {
+                // 하이라이트는 FillArea 영역(fillAreaParent 기준 [yMin,yMax] 세로 밴드)에만
+                // 걸쳐 있으니, 열린 높이(fraction — 병 전체 높이 기준)를 그 밴드 안에서
+                // 자른다. Visual의 _lockedClip과 같은 fillAreaParent 정규화 y를 써서
+                // 잘리는 절대 높이가 일치한다. fraction이 밴드 아래(yMin)보다 낮으면
+                // anchorMax.y < anchorMin.y가 되어 아무것도 안 그려진다(원하는 동작).
+                Vector2 faMin = FillArea.anchorMin;
+                Vector2 faMax = FillArea.anchorMax;
+                _unlockedHighlightRect.anchorMin = faMin;
+                _unlockedHighlightRect.anchorMax = new Vector2(faMax.x, Mathf.Min(faMax.y, fraction));
+                _unlockedHighlightRect.offsetMin = _unlockedHighlightRect.offsetMax = Vector2.zero;
+            }
         }
 
         /// <summary>기울기(도). 0 = 똑바로 선 상태. 붓는 병(출발 병)에만 호출한다.
