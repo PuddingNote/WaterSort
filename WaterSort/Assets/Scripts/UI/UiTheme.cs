@@ -312,5 +312,19 @@ namespace ColorSort.UI
         public const float StageClearBurstMaxDistance = 380f;
         public const float StageClearBurstDuration = 0.7f;
         public static readonly Color StageClearBurstColor = PrimaryColor;
+
+        // 물병 하나를 한 색으로 다 채워 "완성"됐을 때 그 병 윗부분에서 잠깐 튀는 작은
+        // 축하 이펙트(StageClearBurst의 축소판 — 2026-09-10 요청). 화면 전체가 아니라
+        // 병 하나 크기라 파티클이 더 적고·작고·가깝고·짧다. 색은 상수가 아니라 그 병을
+        // 채운 물 색(WaterPalette)을 그대로 쓴다(2026-09-10 — 예전엔 항상 PrimaryColor).
+        public const int BottleCompleteBurstParticleCount = 8;
+        public const float BottleCompleteBurstParticleSize = 16f;
+        public const float BottleCompleteBurstMaxDistance = 90f;
+        public const float BottleCompleteBurstDuration = 0.5f;
+
+        // 이펙트 시작 위치를 병 윗변 중앙에서 얼마나 옮길지(디자인 픽셀, x=오른쪽/y=위).
+        // 인게임에서 보면서 맞추라고 UiSkin.asset Inspector로 뺐다(없으면 (0,0) = 윗변 정중앙).
+        public static Vector2 BottleCompleteBurstOffset =>
+            Skin != null ? Skin.BottleCompleteBurstOffset : Vector2.zero;
     }
 }

@@ -1180,6 +1180,30 @@ PlayStageClearThenAdvance`에서 일어나지만, 힌트 버튼(이 애니메이
 게임 콘텐츠(물 색) 전용이라 장식 이펙트에 끌어다 쓰지 않는다는 원칙을
 유지했다.
 
+**병 완성 시 축소판 버스트 (2026-09-10)**: "물병 하나를 같은 색으로 다
+채웠으면 그 병에서 조그맣게 이펙트를 내달라(스테이지 클리어처럼)"는 요청으로
+`BottleCompleteBurst`(신규)를 추가했다 — 재생 로직은 `StageClearBurst`와
+동일(circle.png 여러 개를 방사형으로 밀며 옅어짐)하고 `UiTheme.BottleCompleteBurst*`로
+파티클 수 8·크기 16·거리 90·시간 0.5s로 줄인 축소판. `StageClearBurst`가
+오버레이가 만들어 둔 중앙 layer를 빌려 쓰는 것과 달리, 병마다 위치가
+달라서 자기 컨테이너를 만들어 월드 좌표(완성된 병 `Root` 중앙)에 놓고 다
+끝나면 그 컨테이너째 스스로 파괴한다. `GameView.PerformMove`에서 성공한
+이동의 도착 병이 `IsFullyStacked`(가득 + 단색 + 비어있지 않음)면
+`PourLiftTime + PourFlowTime`만큼(붓기로 물이 다 차오르는 시점) 기다렸다
+재생하는 코루틴을 건다 — 기다리는 사이 Undo/Reset으로 완성이 풀렸으면
+발사 직전에 다시 확인해서 취소한다. 도착 병은 붓기 전 `IsFull`이면 애초에
+부을 수 없으니, 이동 직후 가득 찼다면 방금 그 이동으로 완성된 것이라
+"이번에 새로 완성" 판정은 이 한 줄로 충분하다.
+
+**위치·색 조정 (2026-09-10, 같은 날)**: 처음엔 병 정중앙(`Root.position`)에서
+파란색(PrimaryColor) 고정으로 터뜨렸는데, (1) 위치를 병 윗변 중앙으로 올리고
+(`Root.GetWorldCorners`의 TL·TR 평균), 인게임에서 보며 맞추라고
+`UiSkin.BottleCompleteBurstOffset`(Vector2, 디자인 픽셀 → `lossyScale` 곱해
+캔버스 배율 반영)로 시작 위치 미세조정을 Inspector에 뺐다. (2) 색을
+`UiTheme` 상수 대신 그 병을 채운 물 색(`WaterPalette.Get(container.TopColor)`)을
+`BottleCompleteBurst.Play(parent, worldCenter, color)` 인자로 넘겨서, 완성한
+색과 이펙트 색 계열이 같아지게 했다.
+
 ## 물이 밋밋해 보이는 문제 — 재도전, 이번엔 코드로 생성한 그라디언트 (2026-09-09)
 
 사용자가 다른 게임 스크린샷(진짜 유리 플라스크처럼 빛이 반사되는 느낌)과

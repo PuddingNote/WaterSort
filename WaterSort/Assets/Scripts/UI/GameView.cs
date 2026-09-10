@@ -47,6 +47,7 @@ namespace ColorSort.UI
 
         private int? _selectedIndex;
         private RectTransform _activeDialog;
+        private RectTransform _effectsLayer;
         private bool _hintInFlight;
 
         // 선택된 병을 "손으로 살짝 들어올린" 것처럼 표현하는 연출(2026-09-09 확정 —
@@ -110,6 +111,7 @@ namespace ColorSort.UI
             var effectsLayer = UiFactory.CreatePanel(root, "EffectsLayer", Color.clear);
             UiFactory.Stretch(effectsLayer);
             effectsLayer.gameObject.GetComponent<Image>().raycastTarget = false;
+            _effectsLayer = effectsLayer; // 병 완성 축하 이펙트(BottleCompleteBurst)도 이 레이어에 얹는다.
 
             var audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
@@ -375,6 +377,13 @@ namespace ColorSort.UI
                 // 코루틴도 같이 멈춘다).
                 SnapBottleLift(from, 0f);
                 _pourAnimator.Play(result, _bottleViews[result.FromIndex], _bottleViews[result.ToIndex], onComplete: EvaluateBoardState);
+
+                // 이 이동으로 도착 병이 한 색으로 가득 찼으면(완성) 그 병에서 작은 축하
+                // 이펙트를 터뜨린다 — 물이 실제로 다 차오르는 시점(붓기 들어올리기+흐르기가
+                // 끝나는 때)에 맞춰 잠깐 늦춰서 재생한다. 도착 병은 붓기 전엔 IsFull이면
+                // 애초에 부을 수 없으니, 지금 가득 찼다면 방금 이 이동으로 완성된 것이다.
+                if (IsFullyStacked(_session.Board.Containers[result.ToIndex]))
+                    StartCoroutine(PlayBottleCompleteBurstAfterPour(result.ToIndex));
             }
             else
             {
@@ -383,6 +392,40 @@ namespace ColorSort.UI
             }
 
             RefreshHighlights();
+        }
+
+        /// <summary>한 색으로 가득 찬(= 더 손댈 필요 없는, 비어있지 않은) 병인지.
+        /// Container.IsResolved는 빈 병도 포함하므로 여기선 "실제로 다 채워 완성"만 본다.</summary>
+        private static bool IsFullyStacked(Container container) =>
+            container.IsFull && container.Count > 0 && container.TopRunLength() == container.Count;
+
+        /// <summary>방금 완성된 병에서 작은 축하 이펙트를 터뜨린다 — 붓기 연출로 물이
+        /// 실제로 다 차오르는 시점(들어올리기 + 흐르기 구간이 끝나는 때)에 맞춰
+        /// 잠깐 기다렸다 재생한다. GameView가 파괴되면(라운드 전환) 코루틴도 같이
+        /// 멈추므로 별도 정리는 필요 없다.</summary>
+        private IEnumerator PlayBottleCompleteBurstAfterPour(int containerIndex)
+        {
+            yield return new WaitForSeconds(UiTheme.PourLiftTime + UiTheme.PourFlowTime);
+            if (containerIndex < 0 || containerIndex >= _bottleViews.Count) yield break;
+            if (containerIndex >= _session.Board.Containers.Count) yield break;
+            var container = _session.Board.Containers[containerIndex];
+            // 기다리는 사이 Undo/Reset 등으로 완성이 풀렸으면 조용히 취소.
+            if (!IsFullyStacked(container)) yield break;
+
+            // 시작 위치: 병 Root의 윗변 중앙 + Inspector 오프셋(디자인 픽셀 → 캔버스 배율 반영).
+            var root = _bottleViews[containerIndex].Root;
+            var corners = new Vector3[4];
+            root.GetWorldCorners(corners); // 0=BL, 1=TL, 2=TR, 3=BR
+            Vector2 off = UiTheme.BottleCompleteBurstOffset;
+            Vector3 start = (corners[1] + corners[2]) * 0.5f
+                            + new Vector3(off.x * root.lossyScale.x, off.y * root.lossyScale.y, 0f);
+
+            // 색: 그 병을 채운 물 색 그대로(완성 병이라 단색).
+            Color color = container.TopColor.HasValue
+                ? WaterPalette.Get(container.TopColor.Value)
+                : UiTheme.PrimaryColor;
+
+            BottleCompleteBurst.Play(_effectsLayer, start, color);
         }
 
         private void OnUndoClicked()

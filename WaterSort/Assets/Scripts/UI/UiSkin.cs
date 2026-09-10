@@ -60,6 +60,12 @@ namespace ColorSort.UI
 
         private void OnValidate() => UiTheme.RefreshGlassHighlightSprite();
 
+        [Header("병 완성 축하 이펙트 (BottleCompleteBurst)")]
+        [Tooltip("물병 하나를 한 색으로 다 채웠을 때 튀는 작은 이펙트의 시작 위치를, 병 " +
+                 "윗변 중앙에서 얼마나 옮길지(디자인 픽셀 — x=오른쪽, y=위). 게임 실행 중에 " +
+                 "이 값을 바꾸고 병을 완성시켜 보면서 맞추면 된다. (0,0)이면 병 윗변 정중앙.")]
+        public Vector2 BottleCompleteBurstOffset = Vector2.zero;
+
         [Header("로딩 스피너 (힌트 계산 중 등 — 정사각형, 가운데 정렬된 원형 도트 배치 권장)")]
         [Tooltip("HintLoadingOverlay가 이 그림을 그대로 빙글빙글 회전만 시킨다(따로 애니메이션 " +
                  "프레임 필요 없음) — 점점 흐려지는 도트처럼 그림 자체에 '잔상' 효과가 이미 " +
