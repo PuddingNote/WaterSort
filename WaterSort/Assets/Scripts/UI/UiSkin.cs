@@ -49,6 +49,17 @@ namespace ColorSort.UI
                  "같은 굴곡의 하이라이트가 생긴다 — 코드 수정 없이 그림만 바꿔서 됨.")]
         public Sprite WaterFill;
 
+        [Header("유리 하이라이트 (물 위에 얹는 세로 빛줄기 — 그림이 아니라 코드로 생성)")]
+        [Tooltip("병에 얹히는 빛줄기의 위치·폭·밝기. 게임 실행 중에 이 슬라이더를 움직여도 " +
+                 "바로 반영된다(OnValidate → UiTheme.RefreshGlassHighlightSprite가 같은 텍스처를 " +
+                 "그 자리에서 다시 칠한다). 마음에 드는 값을 찾으면 UiTheme의 기본값에도 옮겨 두면 " +
+                 "UiSkin이 없어도 같은 모양이 나온다.")]
+        [Range(0f, 1f)] public float GlassHighlightPeakX = 0.28f;      // 가장 밝은 지점(0=왼쪽 끝, 1=오른쪽 끝)
+        [Range(0.02f, 1f)] public float GlassHighlightSoftness = 0.36f; // 이 폭만큼 좌우로 퍼지며 옅어짐(0이면 나눗셈 터짐 → 하한 0.02)
+        [Range(0f, 1f)] public float GlassHighlightMaxAlpha = 0.18f;    // 가장 밝은 지점의 최대 불투명도
+
+        private void OnValidate() => UiTheme.RefreshGlassHighlightSprite();
+
         [Header("로딩 스피너 (힌트 계산 중 등 — 정사각형, 가운데 정렬된 원형 도트 배치 권장)")]
         [Tooltip("HintLoadingOverlay가 이 그림을 그대로 빙글빙글 회전만 시킨다(따로 애니메이션 " +
                  "프레임 필요 없음) — 점점 흐려지는 도트처럼 그림 자체에 '잔상' 효과가 이미 " +

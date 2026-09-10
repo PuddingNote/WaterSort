@@ -15,6 +15,7 @@ namespace ColorSort.UI
         private static Sprite _loadingSpinnerSprite;
         private static bool _loadingSpinnerLoadAttempted;
         private static Sprite _glassHighlightSprite;
+        private static Texture2D _glassHighlightTexture; // _glassHighlightSprite가 감싸는 텍스처 — 값 바뀌면 이걸 그 자리에서 다시 칠한다.
 
         /// <summary>프로젝트 전체 텍스트가 예외 없이 이 폰트를 쓴다(사용자 지정 고정값).
         /// 프리팹/씬에 미리 꽂아두지 않고 코드에서 로드하는 이유는 이 프로젝트가 UI를
@@ -82,16 +83,34 @@ namespace ColorSort.UI
             }
         }
 
+        /// <summary>UiSkin의 유리 하이라이트 값이 바뀌었을 때(UiSkin.OnValidate) 호출 —
+        /// 이미 만들어 둔 텍스처를 같은 자리에서 다시 칠하기만 한다. Sprite 객체는
+        /// 그대로라 이 스프라이트를 쓰는 모든 병의 Highlight Image가 다음 렌더에
+        /// 자동 반영된다(병마다 다시 안 붙여도 됨). 아직 한 번도 안 만들었으면
+        /// (_glassHighlightTexture == null) 조용히 무시 — 다음에 처음 접근할 때
+        /// 그때 값으로 만들어진다. 게임 실행 중에 Inspector에서 슬라이더를 움직이면
+        /// 바로 눈에 보이라고 있는 경로.</summary>
+        public static void RefreshGlassHighlightSprite()
+        {
+            if (_glassHighlightTexture != null) PaintGlassHighlightPixels(_glassHighlightTexture);
+        }
+
         private static Sprite BuildGlassHighlightSprite()
         {
             const int width = 64;
-            var texture = new Texture2D(width, 1, TextureFormat.RGBA32, false)
+            _glassHighlightTexture = new Texture2D(width, 1, TextureFormat.RGBA32, false)
             {
                 name = "GlassHighlightGradient",
                 wrapMode = TextureWrapMode.Clamp,
                 filterMode = FilterMode.Bilinear,
             };
+            PaintGlassHighlightPixels(_glassHighlightTexture);
+            return Sprite.Create(_glassHighlightTexture, new Rect(0f, 0f, width, 1f), new Vector2(0.5f, 0.5f), 100f);
+        }
 
+        private static void PaintGlassHighlightPixels(Texture2D texture)
+        {
+            int width = texture.width;
             var pixels = new Color[width];
             for (int x = 0; x < width; x++)
             {
@@ -103,17 +122,16 @@ namespace ColorSort.UI
             }
             texture.SetPixels(pixels);
             texture.Apply();
-
-            return Sprite.Create(texture, new Rect(0f, 0f, width, 1f), new Vector2(0.5f, 0.5f), 100f);
         }
 
-        // GlassHighlightSprite 모양 조절값 — 참고 이미지처럼 왼쪽으로 살짝 치우친
-        // 위치(중앙이 아니라 28% 지점)에 빛줄기가 오도록. GlassHighlightSprite가
-        // 한 번 생성되면 그 텍스처를 앱이 켜져 있는 동안 계속 캐시해서 재사용하므로,
-        // 이 값을 바꾸면 다음 실행(에디터 재생 포함)부터 반영된다.
-        public const float GlassHighlightPeakX = 0.28f; // 가장 밝은 지점(0=왼쪽 끝, 1=오른쪽 끝).
-        public const float GlassHighlightSoftness = 0.22f; // 이 폭만큼 좌우로 퍼지며 옅어짐.
-        public const float GlassHighlightMaxAlpha = 0.22f; // 가장 밝은 지점의 최대 불투명도(0.3 -> 0.22, 2026-09-09 — "살짝 너무 밝다"는 피드백으로 낮춤).
+        // GlassHighlightSprite 모양 조절값 — 이제 UiSkin.asset의 Inspector에서 게임
+        // 실행 중에도 바꿀 수 있다(바꾸면 UiSkin.OnValidate가 RefreshGlassHighlightSprite를
+        // 불러 같은 텍스처를 그 자리에서 다시 칠한다). UiSkin이 없을 때만 아래 기본값이
+        // 쓰인다. 참고 이미지처럼 빛줄기가 왼쪽으로 살짝 치우친(28% 지점) 위치에 오도록.
+        public static float GlassHighlightPeakX => Skin != null ? Skin.GlassHighlightPeakX : 0.28f;
+        public static float GlassHighlightSoftness =>
+            Skin != null ? Mathf.Max(0.02f, Skin.GlassHighlightSoftness) : 0.36f; // 0이면 나눗셈이 터진다.
+        public static float GlassHighlightMaxAlpha => Skin != null ? Skin.GlassHighlightMaxAlpha : 0.18f;
 
         // 색상 — 물병 테마 톤(어두운 네이비 + 청량한 포인트 컬러). GameDesign.md 5장 참고.
         // 소재가 바뀌면 이 파일의 값만 바꾸면 된다(로직 코드는 색상값을 모름).
