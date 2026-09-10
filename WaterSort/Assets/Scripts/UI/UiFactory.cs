@@ -119,8 +119,11 @@ namespace ColorSort.UI
             return rect;
         }
 
+        /// <param name="clickSfx">클릭 시 울릴 효과음(기본 = 공용 버튼 터치음). 새로고침
+        /// (초기화) 버튼처럼 다른 소리를 쓰려면 그 큐를, 아무 소리도 안 내려면 null을 넘긴다.</param>
         public static Button CreateButton(
-            Transform parent, string label, float width, float height, Color background, Action onClick)
+            Transform parent, string label, float width, float height, Color background, Action onClick,
+            SoundService.Sfx? clickSfx = SoundService.Sfx.ButtonTouch)
         {
             var go = new GameObject($"Button_{label}", typeof(RectTransform), typeof(Image), typeof(Button));
             var rect = (RectTransform)go.transform;
@@ -147,7 +150,11 @@ namespace ColorSort.UI
             colors.pressedColor = Color.Lerp(background, Color.black, 0.15f);
             colors.disabledColor = UiTheme.Disabled;
             button.colors = colors;
-            if (onClick != null) button.onClick.AddListener(() => onClick());
+            button.onClick.AddListener(() =>
+            {
+                if (clickSfx.HasValue) SoundService.Instance?.Play(clickSfx.Value);
+                onClick?.Invoke();
+            });
 
             // 종료/시작/다이얼로그처럼 밝은 색 배경 버튼은 검은 글씨(사용자 확정).
             var text = CreateText(rect, label, UiTheme.FontSizeButton, UiTheme.TextOnButton);
@@ -160,7 +167,8 @@ namespace ColorSort.UI
         /// 아직 없으면(<paramref name="icon"/>이 null) <paramref name="fallbackText"/>를
         /// 대신 작게 표시한다 — 뭘 하는 버튼인지조차 알 수 없는 빈 사각형을 막기 위함.</summary>
         public static Button CreateIconButton(
-            Transform parent, Sprite icon, float size, Color background, Action onClick, string fallbackText = null)
+            Transform parent, Sprite icon, float size, Color background, Action onClick, string fallbackText = null,
+            SoundService.Sfx? clickSfx = SoundService.Sfx.ButtonTouch)
         {
             var go = new GameObject("IconButton", typeof(RectTransform), typeof(Image), typeof(Button));
             var rect = (RectTransform)go.transform;
@@ -181,7 +189,11 @@ namespace ColorSort.UI
             }
 
             var button = go.GetComponent<Button>();
-            if (onClick != null) button.onClick.AddListener(() => onClick());
+            button.onClick.AddListener(() =>
+            {
+                if (clickSfx.HasValue) SoundService.Instance?.Play(clickSfx.Value);
+                onClick?.Invoke();
+            });
 
             if (icon != null)
             {
@@ -196,6 +208,76 @@ namespace ColorSort.UI
             }
 
             return button;
+        }
+
+        /// <summary>가로 볼륨 슬라이더(0~1). 스프라이트 없이 트랙/채움/핸들을 단색
+        /// 사각형(+핸들만 circle.png)으로 짜서 만든다 — 프로젝트가 UI를 전부 코드로
+        /// 짓는 방식(재사용 노트 4장). 반환된 Slider의 value/onValueChanged를 그대로 쓴다.</summary>
+        public static Slider CreateSlider(Transform parent, float width, float height, float value, Action<float> onChanged)
+        {
+            var go = new GameObject("Slider", typeof(RectTransform), typeof(Slider));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(parent, false);
+            rect.sizeDelta = new Vector2(width, height);
+            FixedSize(go, width, height);
+
+            float thick = UiTheme.SliderTrackThickness;
+            float handle = UiTheme.SliderHandleSize;
+
+            // 트랙(배경) — 세로 가운데에 얇은 띠. 좌우로 handle/2씩 들여서, 핸들이
+            // 움직이는 범위(fill/handleArea와 동일)와 정확히 일치시킨다 — 안 그러면
+            // 트랙 끝이 핸들 이동 한계보다 handle/2만큼 더 튀어나와 보인다(사용자
+            // 제보, 2026-09-10). 이 이미지가 클릭 판정을 받아 아무 데나 눌러도 그
+            // 위치로 값이 점프한다(Unity Slider 기본 동작).
+            var bg = CreateImage(rect, "Background", null, UiTheme.SliderTrackColor);
+            var bgRect = (RectTransform)bg.transform;
+            bgRect.anchorMin = new Vector2(0f, 0.5f);
+            bgRect.anchorMax = new Vector2(1f, 0.5f);
+            bgRect.sizeDelta = new Vector2(-handle, thick);
+            bgRect.anchoredPosition = Vector2.zero;
+
+            // 채워지는 부분 — Slider가 fillRect의 anchorMax.x를 value에 맞춰 조절한다.
+            var fillArea = CreatePanel(rect, "Fill Area", Color.clear);
+            fillArea.anchorMin = new Vector2(0f, 0.5f);
+            fillArea.anchorMax = new Vector2(1f, 0.5f);
+            fillArea.sizeDelta = new Vector2(-handle, thick);
+            fillArea.anchoredPosition = Vector2.zero;
+            fillArea.GetComponent<Image>().raycastTarget = false;
+
+            var fill = CreateImage(fillArea, "Fill", null, UiTheme.SliderFillColor);
+            fill.raycastTarget = false;
+            var fillRect = (RectTransform)fill.transform;
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = new Vector2(0f, 1f);
+            fillRect.sizeDelta = new Vector2(handle, 0f);
+            fillRect.anchoredPosition = Vector2.zero;
+
+            // 핸들 — circle.png(있으면)로 둥근 손잡이, 없으면 노란 사각형.
+            var handleArea = CreatePanel(rect, "Handle Slide Area", Color.clear);
+            handleArea.anchorMin = Vector2.zero;
+            handleArea.anchorMax = Vector2.one;
+            handleArea.offsetMin = new Vector2(handle * 0.5f, 0f);
+            handleArea.offsetMax = new Vector2(-handle * 0.5f, 0f);
+            handleArea.GetComponent<Image>().raycastTarget = false;
+
+            var handleImg = CreateImage(handleArea, "Handle", UiTheme.LoadingSpinnerSprite, UiTheme.SliderHandleColor);
+            handleImg.type = Image.Type.Simple;
+            handleImg.preserveAspect = true;
+            var handleRect = (RectTransform)handleImg.transform;
+            handleRect.sizeDelta = new Vector2(handle, handle);
+            handleRect.anchorMin = handleRect.anchorMax = new Vector2(0f, 0.5f);
+
+            var slider = go.GetComponent<Slider>();
+            slider.fillRect = fillRect;
+            slider.handleRect = handleRect;
+            slider.targetGraphic = handleImg;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.wholeNumbers = false;
+            slider.value = Mathf.Clamp01(value);
+            if (onChanged != null) slider.onValueChanged.AddListener(v => onChanged(v));
+            return slider;
         }
 
         public static VerticalLayoutGroup AddVerticalLayout(

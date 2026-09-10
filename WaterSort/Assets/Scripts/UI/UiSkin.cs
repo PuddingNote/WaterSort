@@ -21,6 +21,11 @@ namespace ColorSort.UI
         [Header("아이콘 버튼 배경 (설정/뒤로/실행취소/초기화/힌트/추가 등 정사각 버튼 전부 공용)")]
         public Sprite IconButtonBackground;
 
+        [Header("설정 창 ON/OFF 토글 버튼 배경 (9-slice 권장)")]
+        [Tooltip("비워두면 단색 사각형. 그림을 넣으면 그 위에 ON=청록 / OFF=회색 틴트가 곱해지므로 " +
+                 "흰색/밝은 회색 바탕으로 만든다.")]
+        public Sprite ToggleButtonBackground;
+
         [Header("아이콘 버튼 전경 그림 (버튼마다 다른 그림 — 배경 위에 얹힘)")]
         public Sprite SettingsIcon;
         public Sprite BackIcon;
@@ -73,9 +78,30 @@ namespace ColorSort.UI
                  "Radial360로 부채꼴 채워서 대신 돌린다.")]
         public Sprite LoadingSpinner;
 
-        [Header("사운드 (선택 — 비워두면 무음 처리)")]
-        [Tooltip("물 붓기 사운드. 여러 붓기가 겹치면 항상 이 클립을 재생하는 AudioSource " +
-                 "하나를 공유해서, Play()가 자동으로 이전 재생을 끊고 새로 시작한다.")]
+        // 사운드 — 전부 선택 사항이다. 비워두면 그 소리만 조용히 무음이고, 나중에
+        // 클립을 만들어 아래 슬롯에 드래그해 넣으면 재컴파일/재생 없이 바로 동작한다
+        // (SoundService가 매 재생 시점에 이 값을 새로 읽음 — BGM만은 시작 시점에
+        // 한 번 잡으므로 설정 창 토글 등으로 StartBgm이 다시 불릴 때 반영).
+        [Header("BGM")]
+        [Tooltip("메인 BGM 하나. 앱 시작 시 루프 재생된다(설정 창에서 끄면 무음).")]
+        public AudioClip MainBgm;
+
+        [Header("SFX")]
+        [Tooltip("버튼·물병 터치음 — 새로고침(초기화, RESET) 버튼만 빼고 나머지 모든 버튼과 " +
+                 "물병 탭에 공용으로 울린다.")]
+        public AudioClip ButtonTouchSfx;
+
+        [Tooltip("새로고침(초기화, RESET) 버튼 전용 — '새로 고쳐지는' 느낌의 소리.")]
+        public AudioClip RefreshSfx;
+
+        [Tooltip("물병에서 물을 따르는 소리. 여러 병을 동시에 옮기면 겹쳐 울리지 않고 " +
+                 "가장 최근 붓기 하나만 들린다(SoundService.PlayPour — 이전 재생을 끊고 다시 시작).")]
         public AudioClip PourSound;
+
+        [Tooltip("물병 하나를 한 색으로 다 채워 완성했을 때 나는 소리.")]
+        public AudioClip BottleCompleteSfx;
+
+        [Tooltip("스테이지(라운드) 클리어 연출이 뜰 때 나는 소리.")]
+        public AudioClip StageClearSfx;
     }
 }

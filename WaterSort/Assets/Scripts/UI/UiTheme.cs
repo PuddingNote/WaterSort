@@ -150,6 +150,13 @@ namespace ColorSort.UI
         public static readonly Color DialogBackground = new Color32(0x20, 0x24, 0x4A, 0xFF);
         public static readonly Color DimBackground = new Color32(0x0A, 0x0A, 0x1A, 0xA6); // 다이얼로그 뒤 딤 처리(알파는 기존 0.65 유지, 색만 변경)
 
+        // 설정 창 슬라이더(BGM/SFX 볼륨) — 참고 이미지 톤(어두운 트랙 + 청록 채움 + 노란 핸들).
+        public static readonly Color SettingsToggleOnColor = PrimaryColor;                       // ON = 청록
+        public static readonly Color SettingsToggleOffColor = new Color32(0x55, 0x5D, 0x6E, 0xFF); // OFF = 회색(Disabled와 같은 톤)
+        public static readonly Color SliderTrackColor = new Color32(0x3A, 0x3F, 0x52, 0xFF);      // 채워지지 않은 트랙(어두운 회색)
+        public static readonly Color SliderFillColor = PrimaryColor;                              // 채워진 부분(청록)
+        public static readonly Color SliderHandleColor = new Color32(0xF2, 0xC9, 0x4C, 0xFF);     // 손잡이(노랑)
+
         // 크기(px, 1080 기준 해상도 가정 — CanvasScaler 참고 해상도와 맞춰서 쓴다)
         public const float ButtonWidthLarge = 400f;
         public const float ButtonHeightLarge = 120f;
@@ -173,6 +180,15 @@ namespace ColorSort.UI
         public const float DialogButtonWidth = 300f;
         public const float DialogButtonHeight = 110f;
         public const float DialogTitleFontSize = 56f;
+
+        // 설정 창 규격 — 확인 다이얼로그보다 세로로 길다(제목 + 두 줄(BGM/SFX) + 닫기).
+        // 세 그룹(제목 / BGM·SFX / CLOSE) 사이를 넉넉히 띄우려고 높이를 키웠다(2026-09-10).
+        public const float SettingsDialogHeight = 720f;
+        public const float SettingsRowHeight = 96f;
+        public const float SettingsToggleWidth = 150f;
+        public const float SettingsTitleFontSize = 68f; // 공용 DialogTitleFontSize(56)보다 크게(사용자 확정).
+        public const float SliderTrackThickness = 12f;
+        public const float SliderHandleSize = 60f; // 40 -> 60: 손으로 잡기 쉽게 키움(사용자 확정, 2026-09-10).
 
         // 로딩 스피너(힌트 계산 중 등) 규격.
         public const float LoadingSpinnerSize = 160f;

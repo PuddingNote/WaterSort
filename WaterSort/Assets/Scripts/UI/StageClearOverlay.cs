@@ -102,6 +102,8 @@ namespace ColorSort.UI
         /// </summary>
         public static async Task Play(Handle overlay, Func<Task> onHoldPhase)
         {
+            SoundService.Instance?.Play(SoundService.Sfx.StageClear); // 연출이 뜨는 순간 한 번.
+
             float bgTarget = UiTheme.DimBackground.a; // 다이얼로그 딤 배경과 동일한 목표 알파(166/255).
 
             // 1) 페이드인: 텍스트 0->100%, 배경도 함께 0->목표 알파로 등장.

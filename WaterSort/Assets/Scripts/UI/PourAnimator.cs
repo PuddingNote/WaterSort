@@ -18,8 +18,9 @@ namespace ColorSort.UI
     ///
     /// 입력은 막지 않는다(사용자 확정) — 다른 병 이동이 애니메이션 도중에 또
     /// 들어오면 그냥 각자 따로 재생된다. 대신 겹칠 때: 나중에 시작한 물줄기가
-    /// 항상 캔버스 최상단에 그려지고(SetAsLastSibling), 사운드는 공유
-    /// AudioSource 하나를 매번 다시 Play()해서 이전 재생을 자동으로 끊는다.
+    /// 항상 캔버스 최상단에 그려지고(SetAsLastSibling), 붓기 사운드도
+    /// <see cref="SoundService.PlayPour"/>가 이전 재생을 끊고 다시 시작해서 "가장
+    /// 최근 붓기" 하나만 들린다(여러 병을 동시에 옮겨도 소리가 안 뭉개짐).
     /// Undo/Reset처럼 상태를 강제로 되돌리는 조작만 <see cref="CancelAll"/>로
     /// 진행 중인 연출을 전부 끊고, 뒤이어 오는 즉시 새로고침이 최종 상태로 스냅한다.
     /// </summary>
@@ -28,7 +29,6 @@ namespace ColorSort.UI
         private readonly MonoBehaviour _host;
         private readonly PuzzleSession _session;
         private readonly RectTransform _effectsLayer;
-        private readonly AudioSource _audioSource;
         private readonly List<ActivePour> _active = new List<ActivePour>();
         private readonly List<GameObject> _activeStreams = new List<GameObject>();
         private readonly Dictionary<GameObject, Image> _streamImages = new Dictionary<GameObject, Image>();
@@ -55,12 +55,11 @@ namespace ColorSort.UI
             public GameObject Spacer;
         }
 
-        public PourAnimator(MonoBehaviour host, PuzzleSession session, RectTransform effectsLayer, AudioSource audioSource)
+        public PourAnimator(MonoBehaviour host, PuzzleSession session, RectTransform effectsLayer)
         {
             _host = host;
             _session = session;
             _effectsLayer = effectsLayer;
-            _audioSource = audioSource;
         }
 
         /// <summary>containerIndex가 지금 붓는 병(출발 병)으로 자리를 비우고 있는지 —
@@ -353,13 +352,7 @@ namespace ColorSort.UI
             return dest.Root.position.x >= source.Root.position.x ? -1f : 1f;
         }
 
-        private void PlaySound()
-        {
-            var clip = UiTheme.Skin != null ? UiTheme.Skin.PourSound : null;
-            if (clip == null || _audioSource == null) return;
-            _audioSource.clip = clip;
-            _audioSource.Play(); // 같은 AudioSource를 다시 Play()하면 이전 재생은 그 순간 끊긴다.
-        }
+        private static void PlaySound() => SoundService.Instance?.PlayPour();
 
         // 물줄기는 곡선 대신 직선 하나로 그린다 — 짧은 사각형 여러 개를 곡선으로
         // 이어 붙였더니 마디마다 각도가 꺾여 보여서 오히려 부자연스러웠다(사용자

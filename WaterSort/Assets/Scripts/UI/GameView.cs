@@ -113,10 +113,7 @@ namespace ColorSort.UI
             effectsLayer.gameObject.GetComponent<Image>().raycastTarget = false;
             _effectsLayer = effectsLayer; // 병 완성 축하 이펙트(BottleCompleteBurst)도 이 레이어에 얹는다.
 
-            var audioSource = gameObject.AddComponent<AudioSource>();
-            audioSource.playOnAwake = false;
-
-            _pourAnimator = new PourAnimator(this, _session, effectsLayer, audioSource);
+            _pourAnimator = new PourAnimator(this, _session, effectsLayer);
 
             // 병 추가 버튼을 누르는 순간 바로 뜨도록 라운드 시작 시 미리 로드해 둔다 —
             // 로드는 비동기라 탭한 뒤에야 요청하면 그 자리에서 못 보여줄 수 있다.
@@ -177,7 +174,7 @@ namespace ColorSort.UI
             // 그대로 재활용해서 초기화(RESET) 버튼을 놓는다. 기존에 하단 좌측
             // 그룹에 있던 초기화 버튼은 여기로 옮겨왔으니 그 자리는 없앤다(BuildBottomBar 참고).
             var reset = UiFactory.CreateIconButton(root, UiTheme.Skin?.ResetIcon, UiTheme.IconButtonSize, UiTheme.PanelColor,
-                OnResetClicked, fallbackText: "RESET");
+                OnResetClicked, fallbackText: "RESET", clickSfx: SoundService.Sfx.Refresh);
             var resetRect = (RectTransform)reset.transform;
             resetRect.anchorMin = resetRect.anchorMax = new Vector2(1f, 1f);
             resetRect.pivot = new Vector2(1f, 1f);
@@ -330,6 +327,8 @@ namespace ColorSort.UI
             // 연달아 쏟아붓는 걸 그대로 허용한다(둘 다 사용자 확정).
             if (_pourAnimator.IsBusy(index)) return;
 
+            SoundService.Instance?.Play(SoundService.Sfx.ButtonTouch); // 물병 터치음(버튼과 공용).
+
             if (_selectedIndex == null)
             {
                 if (_session.Board.Containers[index].IsEmpty) return; // 빈 병은 출발점이 될 수 없음
@@ -426,6 +425,7 @@ namespace ColorSort.UI
                 : UiTheme.PrimaryColor;
 
             BottleCompleteBurst.Play(_effectsLayer, start, color);
+            SoundService.Instance?.Play(SoundService.Sfx.BottleComplete);
         }
 
         private void OnUndoClicked()

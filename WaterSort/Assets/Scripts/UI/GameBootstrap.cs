@@ -31,6 +31,10 @@ namespace ColorSort.UI
             var canvas = UiFactory.CreateRootCanvas();
             canvas.transform.SetParent(root.transform, false);
 
+            // 앱 전체에서 하나뿐인 사운드 재생기 — DontDestroyOnLoad 루트에 붙여
+            // 타이틀↔게임↔스테이지클리어를 오가도 BGM이 안 끊긴다(SoundService 참고).
+            SoundService.Create(root.transform);
+
             int roundId = ProgressStore.LoadNextRoundId();
             RectTransform activeScreen = null;
             bool transitioning = false; // Start 연타 등으로 ShowGame이 겹쳐 들어가는 것을 막음.
@@ -41,7 +45,6 @@ namespace ColorSort.UI
                 var title = TitleScreen.Build(canvas.transform, "WaterSort", "Sort the colors to clear the puzzle!", new TitleScreen.Callbacks
                 {
                     OnStart = ShowGame,
-                    OnSettings = () => Debug.Log("[GameBootstrap] 설정 — 아직 화면 없음"),
                     OnQuit = QuitGame
                 });
                 activeScreen = (RectTransform)title.transform;

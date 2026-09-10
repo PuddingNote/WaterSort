@@ -18,7 +18,6 @@ namespace ColorSort.UI
             /// <summary>null이면 저장된 진행도(다음 라운드)로 시작. 값이 있으면
             /// 그 라운드로 강제 시작(에디터 전용 테스트 입력에서만 옴).</summary>
             public Action<int?> OnStart;
-            public Action OnSettings;
             public Action OnQuit;
         }
 
@@ -77,7 +76,7 @@ namespace ColorSort.UI
         private void BuildSettingsButton(RectTransform root)
         {
             var button = UiFactory.CreateIconButton(root, icon: UiTheme.Skin?.SettingsIcon, UiTheme.IconButtonSize, UiTheme.PanelColor,
-                () => _callbacks?.OnSettings?.Invoke(), fallbackText: "SETTINGS");
+                RequestSettings, fallbackText: "SETTINGS");
             var rect = (RectTransform)button.transform;
             rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
@@ -129,6 +128,12 @@ namespace ColorSort.UI
             _activeDialog = ConfirmDialog.Show(_canvasRoot, "Exit the game?",
                 "BACK", () => _activeDialog = null,
                 "QUIT", () => { _activeDialog = null; _callbacks?.OnQuit?.Invoke(); });
+        }
+
+        private void RequestSettings()
+        {
+            if (_activeDialog != null) return;
+            _activeDialog = SettingsDialog.Show(_canvasRoot, () => _activeDialog = null);
         }
 
 #if UNITY_EDITOR

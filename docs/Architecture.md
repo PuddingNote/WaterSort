@@ -1573,6 +1573,51 @@ FillArea의 사이즈에 맞게 해야 한다"는 사용자 진단이 정확했�
   0으로 붕괴하는 건 90°에서만이라 세그먼트가 사라지진 않는다. 더 눕히면 병이
   쓰러져 보여서 여기서 멈춤(사용자가 값 조정 가능).
 
+## 사운드 시스템 + 설정 창 (2026-09-10)
+
+그동안 사운드는 붓기 효과음 슬롯(`UiSkin.PourSound`) 하나만 있고 그마저도
+`PourAnimator`가 자기 `AudioSource`로 직접 재생하는 임시 구조였다. 사용자가
+설정 창(참고 이미지: BGM/SFX 각각 ON·OFF 토글 + 볼륨 슬라이더 + CLOSE)을
+요청하면서, 나중에 클립만 만들어 Inspector에 드래그하면 바로 붙을 수 있게
+사운드 종류를 미리 나눠 두라고 했다.
+
+**클립 슬롯 (`UiSkin`)**: `MainBgm` + SFX 5종 —
+`ButtonTouchSfx`(새로고침 뺀 모든 버튼·물병 탭 공용), `RefreshSfx`(초기화
+버튼 전용), `PourSound`(물 따르기), `BottleCompleteSfx`(한 색으로 병 완성),
+`StageClearSfx`. 전부 비워도 그 소리만 무음이고, 나중에 넣으면 재컴파일
+없이 동작(각 재생 시점에 `UiTheme.Skin`에서 새로 읽음).
+
+**`SoundService`(신규, UI)**: 앱에 하나뿐인 `MonoBehaviour`. `GameBootstrap`이
+`DontDestroyOnLoad` 루트에 붙여서 타이틀↔게임↔클리어를 오가도 BGM이 안 끊긴다.
+`AudioSource` 3개 — BGM(loop), SFX(`PlayOneShot`, 겹침 허용), Pour(전용).
+카메라가 없어 씬에 `AudioListener`가 없을 수 있어 없으면 자기 GO에 하나 붙인다.
+`PlayPour()`는 **이전 재생을 끊고 다시 시작** — 여러 병을 동시에 옮겨도 붓기
+소리가 겹쳐 뭉개지지 않고 "가장 최근 붓기" 하나만 들린다(물줄기 z-order를
+"나중 것 우선"으로 두는 기존 정책과 같은 결).
+
+**설정 저장 (`SettingsStore`, 신규, Managers)**: `HintStore`/`ProgressStore`와
+같은 `PlayerPrefs` 래퍼. BGM/SFX 각각 `Enabled`(bool) + `Volume`(0~1). "끔"은
+볼륨과 별개 — 끄면 볼륨 값과 무관하게 `EffectiveVolume`이 0. `SoundService.ApplySettings`가
+이 값을 세 소스 `volume`에 반영(끄면 0, 재생은 계속되므로 다시 켜면 즉시 원복).
+
+**설정 창 (`SettingsDialog`, 신규)**: `ConfirmDialog` 패턴(Canvas 직속, 딤 배경,
+고정 크기 패널, 절대 좌표). 여는 쪽 `TitleScreen.RequestSettings`가 `_activeDialog`로
+잡아 Escape/CLOSE로 닫는다(게임 화면엔 설정 버튼이 없으므로 타이틀에서만 진입).
+`UiFactory.CreateSlider`(신규 — 스프라이트 없이 트랙/채움 단색 + 핸들만 circle.png)로
+슬라이더를, 토글은 `SettingsDialog` 안에서 직접(색·글자를 눌릴 때마다 교체).
+ON/OFF 토글 버튼 배경은 `UiSkin.ToggleButtonBackground`(Inspector 슬롯, 없으면
+단색). 제목 폰트는 공용 `DialogTitleFontSize`(56)가 아니라 전용
+`SettingsTitleFontSize`(68), 세 그룹(제목 / BGM·SFX / CLOSE) 사이 간격을 넉넉히
+두려고 패널 높이를 620→720으로 키웠다. 볼륨 기본값은 100%가 아니라 50%
+(`SettingsStore`의 `GetFloat` 기본 인자 0.5) — 전부 2026-09-10 사용자 확정.
+
+**버튼 효과음 배선**: `UiFactory.CreateButton`/`CreateIconButton`에 옵셔널
+`SoundService.Sfx? clickSfx = ButtonTouch`를 추가해서, 팩토리로 만든 모든
+버튼이 기본적으로 터치음을 낸다. 초기화(RESET) 버튼만 호출부에서
+`clickSfx: Sfx.Refresh`로 덮어쓴다. 물병 탭은 `GameView.OnBottleTapped`에서,
+병 완성음은 완성 버스트와 같은 자리에서, 스테이지 클리어음은
+`StageClearOverlay.Play` 시작에서 각각 명시적으로 재생한다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접
