@@ -232,6 +232,12 @@ namespace ColorSort.UI
         public const float PourLiftTime = 0.2f;
         public const float PourFlowTime = 0.6f;
         public const float PourTiltAngleDeg = 65f; // 도착 병 위에서 붓는 각도라 많이 기울어야 자연스러움.
+        // 붓는 동안(PourFlowTime) 물이 줄어드는 만큼 여기까지 각도를 더 눕힌다 —
+        // 기울어진 물 영역의 세로 높이는 대략 (병높이 × cosθ)라, θ가 90°(수평)에
+        // 가까워질수록 줄어서 남은 물의 수면이 계속 주둥이 근처에 붙는다. 그래야
+        // 물이 병 끝에서 자연스럽게 흘러나오는 것처럼 보인다(2026-09-10 사용자
+        // 요청). 너무 눕히면 병이 쓰러지는 것처럼 보여서 이 정도에서 멈춘다.
+        public const float PourFlowEndTiltAngleDeg = 80f;
         public const float PourHoverHeightRatio = 0.85f; // 도착 병 높이 대비, 그 위로 얼마나 띄울지.
         // 물줄기는 곡선이 아니라 직선 하나 — 짧은 사각형을 여러 개 이어 곡선으로
         // 그렸더니 마디마다 꺾여 보여서 오히려 부자연스러웠다(사용자 확정, 2026-08-26).

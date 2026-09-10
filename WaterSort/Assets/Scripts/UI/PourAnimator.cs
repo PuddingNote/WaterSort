@@ -10,8 +10,10 @@ namespace ColorSort.UI
     /// <summary>
     /// 이동 하나(<see cref="MoveResult"/>)를 실제 붓기 연출로 재생한다: 출발 병을
     /// 그리드에서 잠깐 떼어내 도착 병 바로 위(스파웃이 도착 병과 같은 X)로 들어올려
-    /// 기울이고 → 물줄기(직선, 스파웃→도착 병의 실제 수면) + 양쪽 병 물 높이 동시
-    /// 변화 → 제자리로 복귀. 총 소요시간과 각 구간 비중은 GameDesign.md TBD
+    /// 기울이고 → (물줄기(직선, 스파웃→도착 병의 실제 수면) + 양쪽 병 물 높이 변화
+    /// + 붓는 병이 점점 더 기울기를 동시 진행) → 제자리로 복귀. 붓는 동안 각도를
+    /// 더 눕히는 건 남은 물의 수면이 계속 주둥이에 붙어 보이게 하기 위함이다
+    /// (PlayRoutine 2번 주석). 총 소요시간과 각 구간 비중은 GameDesign.md TBD
     /// 확정값(<see cref="UiTheme"/>) 그대로.
     ///
     /// 입력은 막지 않는다(사용자 확정) — 다른 병 이동이 애니메이션 도중에 또
@@ -236,25 +238,44 @@ namespace ColorSort.UI
                 root.position = Vector3.Lerp(startWorldPos, hoverRootTarget, e);
             });
 
-            // 2) 붓기 — 물줄기 + 양쪽 물 높이 변화를 같은 시간 동안 동시 진행. 위치와
-            // 기울기는 고정(1번 마지막 프레임에서 이미 hoverRootTarget/fullAngle로
-            // 정확히 도달해 있음).
+            // 2) 붓기 — 물줄기 + 양쪽 물 높이 변화 + 붓는 병이 점점 더 기울기를 같은
+            // 시간 동안 동시 진행. 물이 줄어드는 만큼(=p) 각도를 fullAngle에서
+            // pourEndAngle까지 더 눕혀서, 남은 물의 수면이 계속 주둥이 근처에 머물게
+            // 한다(2026-09-10 사용자 요청) — 각도가 고정이면 물만 병 안쪽으로 쑥
+            // 내려가서, 물줄기는 주둥이에서 나오는데 정작 병 속 물은 한참 아래에 있는
+            // 부자연스러운 그림이 된다.
+            //
+            // 각도가 바뀌면 주둥이 위치도 움직이므로, 매 프레임 주둥이를 다시 측정해서
+            // 도착 병 입구 바로 위(hoverSpoutTarget)에 오도록 병 위치를 보정한다 — 1번에서
+            // hoverRootTarget을 구할 때 쓴 "측정 후 델타"와 같은 방식이고, 병진이동은
+            // 회전과 무관하므로 근사가 아니라 정확하다. fullNudge는 그때처럼 측정하는
+            // 그 한 줄에서만 잠깐 걸었다 바로 되돌린다.
             PlaySound();
             var stream = CreateStream();
+            float pourEndAngle = sign * UiTheme.PourFlowEndTiltAngleDeg;
             yield return Tween(UiTheme.PourFlowTime, p =>
             {
                 shrink.SetUnitCount(Mathf.Lerp(shrinkStart, shrinkTarget, p));
                 grow.SetUnitCount(Mathf.Lerp(growStart, growTarget, p));
+
+                source.SetTilt(Mathf.Lerp(fullAngle, pourEndAngle, p));
+                source.SetWaterHorizontalOffset(fullNudge);
+                Vector3 measuredSpout = SpoutWorldPosition(source);
+                source.SetWaterHorizontalOffset(0f);
+                root.position += hoverSpoutTarget - measuredSpout;
+
                 UpdateStream(stream, source, dest, move.Color, move.Count, fullNudge);
             });
             DestroyStream(stream);
 
-            // 3) 제자리로 복귀 + 세우기.
+            // 3) 제자리로 복귀 + 세우기. 2번에서 pourEndAngle까지 눕히고 위치도 매
+            // 프레임 보정했으니, 그 최종 각도·위치를 기준으로 0/제자리까지 되돌린다.
+            Vector3 pourEndRootPos = root.position;
             yield return Tween(UiTheme.PourLiftTime, p =>
             {
                 float e = Ease(p);
-                source.SetTilt(fullAngle * (1f - e));
-                root.position = Vector3.Lerp(hoverRootTarget, startWorldPos, e);
+                source.SetTilt(pourEndAngle * (1f - e));
+                root.position = Vector3.Lerp(pourEndRootPos, startWorldPos, e);
             });
             source.SetTilt(0f);
             root.position = startWorldPos; // 부동소수 오차 없이 정확히 원위치로 스냅.
