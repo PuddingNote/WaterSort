@@ -1618,6 +1618,35 @@ ON/OFF 토글 버튼 배경은 `UiSkin.ToggleButtonBackground`(Inspector 슬롯,
 병 완성음은 완성 버스트와 같은 자리에서, 스테이지 클리어음은
 `StageClearOverlay.Play` 시작에서 각각 명시적으로 재생한다.
 
+## 4라운드마다 전면 광고 + 병 추가 버튼 "광고 봐야 함" 배지 (2026-09-11)
+
+**전면 광고**: 4·8·12… 라운드를 클리어했을 때(= "지금까지 클리어한 라운드
+수"인 `roundId - 1`이 4의 배수), **라운드가 실제로 바뀌기 직전**에 전면 광고를
+한 번 보여준다. `InterstitialAdService`(신규, Managers) — `RewardedAdService`와
+같은 구조지만 보상 개념이 없어서 `ShowAsync(adUnitId)` 하나만 노출한다(광고가
+닫히면 완료되는 `Task`, 준비 안 됐으면 즉시 완료 → 라운드 전환이 절대 안 막힌다).
+`GameBootstrap.PlayStageClearThenAdvance`가 `StageClearOverlay.Play`의 hold
+콜백을 `async () => { if (전면) await ShowAsync(); await ShowGameAsync(); }`로
+바꿔서, "STAGE CLEAR" 텍스트가 100% 불투명하게 떠 있는 채로 광고에 가려져
+있다가 → 광고 닫힘 → 다음 라운드 빌드·화면 교체 → 페이드아웃 순으로 이어진다
+(광고 다 보면 라운드는 이미 바뀌어 있고 연출도 사라짐). 미리 로드는
+`ShowGameAsync`에서 라운드 시작마다 `Preload`. 광고 단위 ID는
+`AdUnitIds.Interstitial`(에디터/개발 빌드는 Google 공식 테스트 ID로 자동 치환,
+`BonusContainerRewarded`와 같은 방식). SDK(`ADS_ENABLED`)가 없으면
+`ShowAsync`가 `Task.CompletedTask`라 그냥 넘어간다.
+
+**병 추가 버튼 배지**: 병 추가 버튼이 "광고를 봐야 한다"는 걸 텍스트가 아니라
+그림으로 알리도록, 버튼 오른쪽 아래 모서리에 `watch_ad.png`(필름 클래퍼 아이콘)를
+배지로 얹고, 그 뒤에 둥근 사각형 배경(`white_square_rounded_128` 9-slice, `#6B9EB7`
+틴트, 69×69로 아이콘 68보다 1 크게)을 깐다 — 아이콘만 있으면 심심하다는 피드백
+(2026-09-11). `GameView.BuildWatchAdBadge`가 배경을 바깥 컨테이너로 삼고
+(`_watchAdBadge`) 아이콘을 그 자식으로 둬서 `SetActive` 한 번에 같이 켜지고 꺼진다.
+배경 그림이 없으면 투명 컨테이너로 대체(아이콘만). 두 그림 모두
+`UiTheme`가 `LoadingSpinnerSprite`처럼 `Resources/Sprites/`에서 직접 로드하고,
+`watch_ad` 자체가 없으면 배지를 아예 안 만든다(버튼은 정상). 표시 여부는
+`RefreshHighlights`가 `_session.CanUnlockBonusContainer`(아직 열 칸이 남았는지)로
+켠다/끈다 — 광고 로드 여부와는 무관.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접

@@ -14,6 +14,10 @@ namespace ColorSort.UI
         private static bool _skinLoadAttempted;
         private static Sprite _loadingSpinnerSprite;
         private static bool _loadingSpinnerLoadAttempted;
+        private static Sprite _watchAdBadgeSprite;
+        private static bool _watchAdBadgeLoadAttempted;
+        private static Sprite _watchAdBadgeBgSprite;
+        private static bool _watchAdBadgeBgLoadAttempted;
         private static Sprite _glassHighlightSprite;
         private static Texture2D _glassHighlightTexture; // _glassHighlightSprite가 감싸는 텍스처 — 값 바뀌면 이걸 그 자리에서 다시 칠한다.
 
@@ -62,6 +66,40 @@ namespace ColorSort.UI
                     _loadingSpinnerLoadAttempted = true;
                 }
                 return _loadingSpinnerSprite;
+            }
+        }
+
+        /// <summary>병 추가(광고 보상) 버튼 오른쪽 아래에 얹는 "광고 봐야 함" 배지 그림
+        /// (초록 원형 배경 + 아이콘이 그림 하나에 다 들어있음 — 텍스트가 아니라 이미지로
+        /// 알리는 게 요점, 2026-09-11 사용자 확정). LoadingSpinnerSprite와 같은 이유로
+        /// UiSkin이 아니라 Resources/Sprites/watch_ad.png에서 직접 로드한다. 없으면 null —
+        /// 그럼 배지가 안 만들어질 뿐 버튼 기능엔 지장 없다(GameView.BuildWatchAdBadge).</summary>
+        public static Sprite WatchAdBadgeSprite
+        {
+            get
+            {
+                if (!_watchAdBadgeLoadAttempted)
+                {
+                    _watchAdBadgeSprite = Resources.Load<Sprite>("Sprites/watch_ad");
+                    _watchAdBadgeLoadAttempted = true;
+                }
+                return _watchAdBadgeSprite;
+            }
+        }
+
+        /// <summary>WatchAdBadgeSprite 뒤에 까는 둥근 사각형 배경(white_square_rounded_128,
+        /// 9-slice) — 아이콘만 덩그러니 있으면 심심해서 넣는다(2026-09-11 사용자 확정).
+        /// 색은 <see cref="WatchAdBadgeBgColor"/> 틴트. 없으면 배경 없이 아이콘만.</summary>
+        public static Sprite WatchAdBadgeBgSprite
+        {
+            get
+            {
+                if (!_watchAdBadgeBgLoadAttempted)
+                {
+                    _watchAdBadgeBgSprite = Resources.Load<Sprite>("Sprites/white_square_rounded_128");
+                    _watchAdBadgeBgLoadAttempted = true;
+                }
+                return _watchAdBadgeBgSprite;
             }
         }
 
@@ -233,6 +271,15 @@ namespace ColorSort.UI
         public const float HintBadgeSize = 52f;
         public const float HintBadgeFontSize = 36f;
         public static readonly Vector2 HintBadgeOffset = new Vector2(-13f, -13f);
+
+        // 병 추가 버튼 오른쪽 아래 모서리에 걸치는 "광고 봐야 함" 배지(watch_ad.png)
+        // + 그 뒤에 까는 둥근 사각형 배경(white_square_rounded_128, 6B9EB7 틴트).
+        // 힌트 배지보다 조금 크게(아이콘이 더 복잡함), 모서리에서 살짝 안쪽으로 당겨
+        // 화면 밖으로 안 나가고 옆 버튼과도 안 겹치게.
+        public const float WatchAdBadgeSize = 68f;
+        public const float WatchAdBadgeBgSize = 80f; // 아이콘(68) 뒤에 여백 있게 조금 더 크게.
+        public static readonly Vector2 WatchAdBadgeOffset = new Vector2(-14f, 14f); // 오른쪽 아래(anchor 1,0) 기준.
+        public static readonly Color WatchAdBadgeBgColor = new Color32(0x6B, 0x9E, 0xB7, 0xFF);
 
         // 배지 배경 색 — 평소엔 흰색, 최대치(HintStore.MaxHints)에 도달하면 노란색으로
         // 바뀌어서 "꽉 찼다"를 알려준다(2026-09-09 확정 — 처음엔 숫자 대신 "MAX"

@@ -44,6 +44,7 @@ namespace ColorSort.UI
         private int _hintCount;
         private TextMeshProUGUI _hintCountText;
         private Image _hintBadgeImage;
+        private RectTransform _watchAdBadge; // 병 추가 버튼 위 "광고 봐야 함" 이미지 배지.
 
         private int? _selectedIndex;
         private RectTransform _activeDialog;
@@ -237,6 +238,52 @@ namespace ColorSort.UI
             BuildHintCountBadge(_hintButton.transform);
             UpdateHintBadge(); // _hintCount는 Initialize 맨 앞에서 이미 HintStore.LoadCount()로 읽어 둠.
             _addContainerButton = UiFactory.CreateIconButton(rightGroup, UiTheme.Skin?.AddContainerIcon, UiTheme.ButtonHeightSmall, UiTheme.PanelColor, OnAddContainerClicked, fallbackText: "ADD");
+            BuildWatchAdBadge(_addContainerButton.transform);
+        }
+
+        /// <summary>병 추가 버튼 오른쪽 아래 모서리에 "광고를 봐야 한다"를 텍스트가 아니라
+        /// 그림으로 알리는 배지(watch_ad.png) + 그 뒤 둥근 사각형 배경
+        /// (white_square_rounded_128, 6B9EB7 — 아이콘만 있으면 심심해서, 2026-09-11
+        /// 사용자 확정). watch_ad 그림이 없으면(null) 배지 자체를 안 만든다 — 버튼
+        /// 기능엔 지장 없다. 표시 여부는 RefreshHighlights가 "아직 열 칸이 남았는지"
+        /// (_session.CanUnlockBonusContainer)로 켠다/끈다.</summary>
+        private void BuildWatchAdBadge(Transform addButtonTransform)
+        {
+            var sprite = UiTheme.WatchAdBadgeSprite;
+            if (sprite == null) return;
+
+            // 배경(있으면) — 이게 바깥 컨테이너 역할도 겸한다. 아이콘을 이 밑에 두면
+            // SetActive 한 번으로 배경+아이콘이 같이 켜지고 꺼진다.
+            var bgSprite = UiTheme.WatchAdBadgeBgSprite;
+            RectTransform outer;
+            if (bgSprite != null)
+            {
+                var bg = UiFactory.CreateImage(addButtonTransform, "WatchAdBadge", bgSprite, UiTheme.WatchAdBadgeBgColor);
+                bg.type = Image.Type.Sliced; // 둥근 모서리 유지(9-slice).
+                bg.raycastTarget = false;
+                outer = (RectTransform)bg.transform;
+                outer.sizeDelta = new Vector2(UiTheme.WatchAdBadgeBgSize, UiTheme.WatchAdBadgeBgSize);
+            }
+            else
+            {
+                outer = UiFactory.CreatePanel(addButtonTransform, "WatchAdBadge", Color.clear);
+                outer.GetComponent<Image>().raycastTarget = false;
+                outer.sizeDelta = new Vector2(UiTheme.WatchAdBadgeSize, UiTheme.WatchAdBadgeSize);
+            }
+            outer.anchorMin = outer.anchorMax = new Vector2(1f, 0f); // 버튼 오른쪽 아래 모서리.
+            outer.pivot = new Vector2(0.5f, 0.5f);
+            outer.anchoredPosition = UiTheme.WatchAdBadgeOffset;
+            _watchAdBadge = outer;
+
+            var icon = UiFactory.CreateImage(outer, "Icon", sprite, Color.white);
+            icon.type = Image.Type.Simple; // 원본 그림 그대로.
+            icon.preserveAspect = true;
+            icon.raycastTarget = false;
+            var iconRect = (RectTransform)icon.transform;
+            iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.5f);
+            iconRect.pivot = new Vector2(0.5f, 0.5f);
+            iconRect.sizeDelta = new Vector2(UiTheme.WatchAdBadgeSize, UiTheme.WatchAdBadgeSize);
+            iconRect.anchoredPosition = Vector2.zero;
         }
 
         /// <summary>힌트 버튼 우측 상단에 얹는 원형 배지(사용자가 다른 게임 스크린샷을
@@ -629,6 +676,10 @@ namespace ColorSort.UI
             // 실패/시청 중에도 이 값이 자동으로 false가 돼서 버튼이 비활성화된다.
             _addContainerButton.interactable = _session.CanUnlockBonusContainer &&
                 RewardedAdService.IsReady(AdUnitIds.BonusContainerRewarded);
+            // "광고 봐야 함" 배지는 아직 열 칸이 남아있을 때만 — 다 열렸으면 버튼도
+            // 의미가 없으니 배지도 숨긴다(광고 로드 여부와는 무관하게 항상 붙어 있음).
+            if (_watchAdBadge != null)
+                _watchAdBadge.gameObject.SetActive(_session.CanUnlockBonusContainer);
         }
 
         /// <summary>bottleViews[index]를 목표 상태(들림/안 들림)로 부드럽게 애니메이션한다

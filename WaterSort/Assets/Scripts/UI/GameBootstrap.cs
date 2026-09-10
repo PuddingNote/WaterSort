@@ -77,6 +77,11 @@ namespace ColorSort.UI
                     if (overrideRoundId.HasValue) roundId = overrideRoundId.Value;
                     int thisRoundId = roundId;
 
+                    // 다음 전면 광고(4라운드마다)를 미리 로드해 둔다 — 실제로 쓰는 건
+                    // PlayStageClearThenAdvance지만, 라운드 시작 때마다 한 번씩 불러 두면
+                    // 정작 필요한 순간엔 이미 준비돼 있다(이미 로드됨/로드 중이면 무시).
+                    InterstitialAdService.Preload(AdUnitIds.Interstitial);
+
                     // 라운드 번호 = 생성 시드. 같은 라운드를 몇 번을 다시 열어도 항상 같은 배치.
                     var roundRng = new System.Random(thisRoundId);
 
@@ -150,10 +155,22 @@ namespace ColorSort.UI
                     hintCharged = after > before;
                 }
 
+                // 4라운드 클리어마다(방금 4·8·12… 라운드를 클리어했을 때) 라운드가
+                // 실제로 바뀌기 직전에 전면 광고를 한 번 보여준다(사용자 확정, 2026-09-11).
+                // "STAGE CLEAR" 텍스트는 100% 불투명하게 떠 있는 상태로 광고 뒤에
+                // 가려져 있다가, 광고가 닫히면 → 다음 라운드 빌드/화면 교체(ShowGameAsync)
+                // → 페이드아웃 순서로 이어져서, 광고를 다 보고 나면 라운드는 이미
+                // 바뀌어 있고 클리어 연출도 사라진다.
+                bool showInterstitial = (roundId - 1) % 4 == 0;
+
                 var overlay = StageClearOverlay.Show(canvas.transform);
                 try
                 {
-                    await StageClearOverlay.Play(overlay, () => ShowGameAsync(showHintChargeAnimation: hintCharged));
+                    await StageClearOverlay.Play(overlay, async () =>
+                    {
+                        if (showInterstitial) await InterstitialAdService.ShowAsync(AdUnitIds.Interstitial);
+                        await ShowGameAsync(showHintChargeAnimation: hintCharged);
+                    });
                 }
                 catch (System.Exception e)
                 {
