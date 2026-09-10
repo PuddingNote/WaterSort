@@ -48,6 +48,15 @@ namespace ColorSort.UI
         /// 했다 — 왜 굳이 분리했는지는 그 메서드 주석 참고.</summary>
         private RectTransform _waterVisual;
 
+        /// <summary>기울었을 때 물이 유리처럼 뻣뻣하게 통째로 같이 도는 대신, 색 경계가
+        /// 항상 수평(가로 일직선)으로 보이게 담는 컨테이너 — BottleMask가 있을 때만
+        /// 만들어진다(null이면 예전처럼 FillArea 기준으로 병의 긴 축을 따라 쌓는
+        /// 폴백). WaterMaskRoot(=Root와 같은 큰 캔버스)가 아니라 WaterClip(=FillArea와
+        /// 정확히 같은 크기의 별도 클리핑 레이어) 밑에 둬서, 물이 보이는 범위 자체가
+        /// FillArea 크기로 제한된다(2026-09-09, 아래 WaterClip 생성부 주석 참고).
+        /// SetTilt/RelayoutSegments 참고.</summary>
+        private RectTransform _waterBands;
+
         // internal(private 아님) — C#의 private는 "중첩 타입 자신 + 그 안에 또
         // 중첩된 타입"까지만 보이고 바깥 클래스(BottleView 본체)로는 안 넓어진다
         // (반대 방향, 즉 바깥의 private 멤버가 중첩 타입에서 보이는 것만 성립).
@@ -205,6 +214,52 @@ namespace ColorSort.UI
             FillArea.offsetMin = Vector2.zero;
             FillArea.offsetMax = Vector2.zero;
 
+            // 물이 보이는 범위를 WaterMaskRoot(병 전체 캔버스 크기의 유리 실루엣, FillArea보다
+            // 넓음) 대신 FillArea(실제로 물이 차야 하는 트리밍된 좁은 영역) 크기로 제한하는
+            // 추가 클리핑 레이어(사용자 확정, 2026-09-09: "물들이 보여지는 범위가
+            // WaterMaskRoot의 사이즈만큼이어서 생기는 문제야. 이걸 FillArea사이즈만큼으로
+            // 변경해줘"). FillArea 자신의 Image는 완전 투명(Color.clear, 알파 0)이라 그대로
+            // Mask를 걸면 알파 클립 판정에 걸려 안쪽 내용이 통째로 안 보이게 된다 — 그래서
+            // FillArea와 정확히 같은 크기로 겹치는 불투명(Color.white) 패널을 따로 만들고
+            // 거기에 Mask를 건다. showMaskGraphic=false라 화면엔 안 보이고 클리핑 역할만
+            // 한다. WaterMaskRoot의 기존 Mask(bottle_mask 실루엣)는 그대로 둔다 — 중첩된
+            // Mask는 Unity가 스텐실 깊이를 자동으로 누적해서 정상적으로 같이 동작한다.
+            // _waterBands(=BottleMask가 있을 때만 쓰는 컨테이너)를 이 안으로 옮길 거라,
+            // BottleMask가 없는 폴백(세그먼트가 FillArea 바로 밑에 있는 경우)에서는
+            // 아무도 안 쓰는 빈 Mask라 아예 안 만든다.
+            //
+            // WaterBands 자체는 기울었을 때 물이 유리처럼 뻣뻣하게 통째로 도는 대신,
+            // 색 경계가 항상 수평(가로 일직선)으로 보이게 하는 컨테이너(사용자 확정,
+            // 2026-09-09: "이 검은선들은 각 물들의 경계고 이건 모두 가로로 일직선").
+            // WaterMaskRoot의 회전 피벗과 정확히 같은 지점에 점 앵커를 두고 자기
+            // pivot도 그 지점(0.5,0.5)으로 맞춰야 SetTilt에서 반대 각도로 되돌릴 때
+            // 자기 자신의 회전 중심과 부모의 회전 중심이 정확히 같은 점이라 위치가
+            // 전혀 안 밀린다(별도 보정 계산 없이 앵커 설정만으로 해결) — 그런데 부모가
+            // WaterMaskRoot가 아니라 WaterClip(=FillArea와 같은 크기지만 Root보다 작고
+            // 위치도 다른 서브 사각형)이라, WaterMaskRoot 좌표계에서의 지점
+            // (0.5, VisualPivotY)을 WaterClip(=FillArea) 좌표계 기준 비율로 다시
+            // 환산해야 같은 월드 지점을 가리킨다(안 그러면 회전축이 미묘하게 어긋나
+            // 기울일 때 위치가 밀린다).
+            if (_waterVisual != null)
+            {
+                var waterClip = UiFactory.CreatePanel(FillArea, "WaterClip", Color.white);
+                UiFactory.Stretch(waterClip); // FillArea와 정확히 같은 크기(anchor 0,0~1,1, 오프셋 0).
+                waterClip.GetComponent<Image>().raycastTarget = false;
+                var waterClipMask = waterClip.gameObject.AddComponent<Mask>();
+                waterClipMask.showMaskGraphic = false;
+
+                float waterBandsAnchorX = (0.5f - fillNormalized.xMin) / fillNormalized.width;
+                float waterBandsAnchorY = (VisualPivotY - fillNormalized.yMin) / fillNormalized.height;
+
+                _waterBands = UiFactory.CreatePanel(waterClip, "WaterBands", Color.clear);
+                _waterBands.GetComponent<Image>().raycastTarget = false;
+                _waterBands.anchorMin = _waterBands.anchorMax = new Vector2(waterBandsAnchorX, waterBandsAnchorY);
+                _waterBands.pivot = new Vector2(0.5f, 0.5f);
+                float bandsSize = UiTheme.BottleHeight * 2.2f; // 최대 기울기에서도 넉넉히 덮는 크기.
+                _waterBands.sizeDelta = new Vector2(bandsSize, bandsSize);
+                _waterBands.anchoredPosition = Vector2.zero;
+            }
+
             // 유리 하이라이트 — FillArea의 형제로, FillArea보다 나중에(=z-order상
             // 위에) 만들어서 물 세그먼트가 몇 개든·색이 뭐든 항상 그 위에 한 줄기
             // 빛으로 걸쳐 보이게 한다. FillArea와 완전히 같은 영역(anchor)을 써서
@@ -282,12 +337,24 @@ namespace ColorSort.UI
 
         /// <summary>기울기(도). 0 = 똑바로 선 상태. 붓는 병(출발 병)에만 호출한다.
         /// Visual(병 그림)과 _waterVisual(물+마스크, 있으면)을 항상 같은 각도로
-        /// 같이 돌려서 하나의 병처럼 보이게 한다.</summary>
+        /// 같이 돌려서 하나의 병처럼 보이게 한다.
+        ///
+        /// _waterBands(물 내용물 컨테이너)는 반대로 <b>이 각도만큼 되돌려서</b>
+        /// 항상 수평을 유지한다 — 자기 회전 중심이 부모(WaterMaskRoot)의 회전
+        /// 중심과 정확히 같은 점이라(생성자에서 앵커로 맞춰 둠) 위치는 안 밀리고
+        /// 회전만 상쇄된다. 그 결과 RelayoutSegments가 다시 계산해야 하므로 같이
+        /// 부른다.</summary>
         public void SetTilt(float degrees)
         {
             var rotation = new Vector3(0f, 0f, degrees);
             Visual.localEulerAngles = rotation;
             if (_waterVisual != null) _waterVisual.localEulerAngles = rotation;
+
+            if (_waterBands != null)
+            {
+                _waterBands.localEulerAngles = new Vector3(0f, 0f, -degrees);
+                RelayoutSegments();
+            }
         }
 
         /// <summary>물+마스크(_waterVisual)를 좌우로 살짝 밀어서 BottleMask와
@@ -412,7 +479,10 @@ namespace ColorSort.UI
 
         private Image CreateSegmentImage()
         {
-            var img = UiFactory.CreateImage(FillArea, "Segment", sprite: null, Color.clear);
+            // _waterBands가 있으면(BottleMask가 있어서 클리핑이 가능한 경우) 그
+            // 안에, 없으면(폴백) 예전처럼 FillArea 바로 밑에 만든다.
+            Transform parent = _waterBands != null ? (Transform)_waterBands : FillArea;
+            var img = UiFactory.CreateImage(parent, "Segment", sprite: null, Color.clear);
             img.raycastTarget = false;
 
             // UiSkin.WaterFill이 있으면 그 스프라이트를 쓴다 — 흰색/밝은 회색 바탕으로
@@ -427,9 +497,22 @@ namespace ColorSort.UI
             }
 
             var rect = (RectTransform)img.transform;
-            rect.anchorMin = new Vector2(0f, 0f);
-            rect.anchorMax = new Vector2(1f, 0f);
-            rect.pivot = new Vector2(0.5f, 0f); // 바닥 기준 — 높이만 바뀌어도 아래쪽은 고정.
+            if (_waterBands != null)
+            {
+                // 가로는 _waterBands 폭 전체로 스트레치, 세로는 _waterBands의 세로
+                // 중앙(=WaterMaskRoot 회전 피벗)을 기준점으로 삼는다 — 실제 위치/높이는
+                // RelayoutSegments가 매번 계산해서 넣는다.
+                rect.anchorMin = new Vector2(0f, 0.5f);
+                rect.anchorMax = new Vector2(1f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0f);
+            }
+            else
+            {
+                // 마스크가 없는 폴백 — 예전 방식 그대로 FillArea 바닥 기준.
+                rect.anchorMin = new Vector2(0f, 0f);
+                rect.anchorMax = new Vector2(1f, 0f);
+                rect.pivot = new Vector2(0.5f, 0f); // 바닥 기준 — 높이만 바뀌어도 아래쪽은 고정.
+            }
             return img;
         }
 
@@ -443,19 +526,79 @@ namespace ColorSort.UI
         private void ApplySegmentUnitCount(Segment segment, float unitCount)
         {
             segment.UnitCount = Mathf.Max(0f, unitCount);
-            if (segment.Image == null) return; // 다른 붓기가 이미 Refresh로 갈아치웠으면 조용히 무시.
+            if (segment.Image != null) segment.Image.color = WaterPalette.Get(segment.Color);
+            RelayoutSegments(); // 이 세그먼트만이 아니라 전체를 다시 배치해야 한다(아래 주석 참고).
+        }
 
-            float baseHeight = 0f;
-            foreach (var s in _segments)
+        /// <summary>모든 세그먼트의 위치/높이를 다시 계산한다 — 붓는 동안 유닛 개수가
+        /// 바뀔 때마다(ApplySegmentUnitCount), 그리고 기울기가 바뀔 때마다(SetTilt)
+        /// 둘 다 이걸 통해서 갱신한다(한 세그먼트의 높이가 바뀌면 그 위에 쌓인
+        /// 세그먼트들의 시작 위치도 같이 밀리므로 전체를 다시 계산해야 함 — 기존
+        /// 로직과 동일한 이유).
+        ///
+        /// _waterBands가 없으면(마스크가 없어 클리핑이 불가능한 폴백) 예전처럼 병의
+        /// 긴 축(FillArea 세로)을 기준으로 쌓는다. 있으면 FillArea의 지금 실제 월드
+        /// 좌표 모서리를 매번 <see cref="RectTransform.GetWorldCorners"/>로 직접
+        /// 측정해서(상수로 미리 계산해 두지 않음 — 안 기울었을 때도 상수 기반 계산이
+        /// 실제 값과 미묘하게 안 맞아 물이 커 보이는 버그가 있었다, 2026-09-09)
+        /// _waterBands 로컬 좌표로 바꾼다. 세로 범위는 "가장 낮은 모서리 ~ 입구
+        /// (위쪽 변)의 두 모서리 중 더 낮은 쪽(=주둥이)"으로 잡고, 그 범위를
+        /// 세그먼트 비율(UnitCount / Capacity)만큼 나눠서 배치한다 — 주둥이보다
+        /// 위(입구 먼 모서리 쪽 삼각형)에는 물이 안 담긴다(2026-09-10). 가로는
+        /// _waterBands 폭 그대로 스트레치돼 병보다 넓지만, 실제로 보이는 범위는
+        /// FillArea와 같은 크기의 WaterClip(Mask)이 잘라내므로 병 밖으로 안
+        /// 삐져나온다(2026-09-09, 생성자의 WaterClip 참고).</summary>
+        private void RelayoutSegments()
+        {
+            if (_waterBands == null)
             {
-                if (s == segment) break;
-                baseHeight += s.UnitCount * UnitHeight;
+                float baseHeight = 0f;
+                foreach (var s in _segments)
+                {
+                    if (s.Image != null)
+                    {
+                        var rect = (RectTransform)s.Image.transform;
+                        rect.anchoredPosition = new Vector2(0f, baseHeight);
+                        rect.sizeDelta = new Vector2(0f, s.UnitCount * UnitHeight);
+                    }
+                    baseHeight += s.UnitCount * UnitHeight;
+                }
+                return;
             }
 
-            var rect = (RectTransform)segment.Image.transform;
-            rect.anchoredPosition = new Vector2(0f, baseHeight);
-            rect.sizeDelta = new Vector2(0f, segment.UnitCount * UnitHeight);
-            segment.Image.color = WaterPalette.Get(segment.Color);
+            // FillArea(마스크와 같이 회전하는, 이미 검증된 기존 기준점)의 실제 월드
+            // 모서리를 측정해서 _waterBands 로컬 좌표로 바꾼다 — PourAnimator가
+            // 스파웃 위치를 구할 때 쓰는 "측정" 패턴과 같은 방식이라, 상수로 미리
+            // 계산해 둔 값과 실제 라이브 값 사이에 오차가 생길 여지가 없다.
+            var worldCorners = new Vector3[4];
+            FillArea.GetWorldCorners(worldCorners); // 0=BL, 1=TL, 2=TR, 3=BR
+            float blY = _waterBands.InverseTransformPoint(worldCorners[0]).y;
+            float tlY = _waterBands.InverseTransformPoint(worldCorners[1]).y;
+            float trY = _waterBands.InverseTransformPoint(worldCorners[2]).y;
+            float brY = _waterBands.InverseTransformPoint(worldCorners[3]).y;
+
+            // 물이 고이는 바닥 = 네 모서리 중 가장 낮은 점(기울면 아래쪽 두 모서리 중
+            // 한쪽). 물이 넘치기 직전의 최대 수면 = 병 입구(위쪽 변, TL·TR)의 두
+            // 모서리 중 더 낮은 쪽 — 그게 기울였을 때 물이 실제로 쏟아지는 주둥이
+            // 지점이다. 예전엔 위 수면을 네 모서리 중 가장 높은 점(입구 위쪽 먼
+            // 모서리)으로 잡아서, 기울이면 주둥이보다 위에서 물이 나오는 것처럼
+            // 보였다(2026-09-10 사용자 제보, 참고 이미지의 빨간 원 → 파란 원).
+            float minY = Mathf.Min(Mathf.Min(blY, brY), Mathf.Min(tlY, trY));
+            float spoutY = Mathf.Min(tlY, trY);
+            float tiltedHeight = Mathf.Max(0f, spoutY - minY);
+
+            float cumulativeFraction = 0f;
+            foreach (var s in _segments)
+            {
+                float fraction = Capacity > 0 ? s.UnitCount / Capacity : 0f;
+                if (s.Image != null)
+                {
+                    var rect = (RectTransform)s.Image.transform;
+                    rect.anchoredPosition = new Vector2(0f, minY + cumulativeFraction * tiltedHeight);
+                    rect.sizeDelta = new Vector2(0f, fraction * tiltedHeight);
+                }
+                cumulativeFraction += fraction;
+            }
         }
     }
 }
