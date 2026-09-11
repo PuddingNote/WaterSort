@@ -103,5 +103,11 @@ namespace ColorSort.UI
 
         [Tooltip("스테이지(라운드) 클리어 연출이 뜰 때 나는 소리.")]
         public AudioClip StageClearSfx;
+
+        [Header("에디터 전용 디버그")]
+        [Tooltip("타이틀 화면의 'Test round' 입력창(원하는 라운드로 바로 시작) 표시 여부. " +
+                 "에디터에서만 어차피 안 보이지만(실제 빌드는 항상 숨김), 스크린샷 찍을 때처럼 " +
+                 "에디터 안에서도 잠깐 감추고 싶을 때 이 체크를 끄면 된다(코드/재컴파일 불필요).")]
+        public bool ShowTestRoundField = true;
     }
 }

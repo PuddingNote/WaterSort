@@ -394,5 +394,11 @@ namespace ColorSort.UI
         // 인게임에서 보면서 맞추라고 UiSkin.asset Inspector로 뺐다(없으면 (0,0) = 윗변 정중앙).
         public static Vector2 BottleCompleteBurstOffset =>
             Skin != null ? Skin.BottleCompleteBurstOffset : Vector2.zero;
+
+        /// <summary>타이틀 화면 "Test round" 입력창(에디터 전용) 표시 여부 —
+        /// UiSkin.asset의 Inspector 체크박스(기본 true). UiSkin이 없으면 기본값(켬).
+        /// TitleScreen이 이 값으로 그 입력창 자체를 만들지 말지 결정한다(스크린샷 등을
+        /// 위해 에디터 안에서도 잠깐 감출 수 있게, 2026-09-11 사용자 확정).</summary>
+        public static bool ShowTestRoundField => Skin == null || Skin.ShowTestRoundField;
     }
 }

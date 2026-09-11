@@ -108,7 +108,12 @@ namespace ColorSort.UI
             AnchorTopCenter(startButton.transform, x: 220f, y: -1200f, width: UiTheme.ButtonWidthLarge, height: UiTheme.ButtonHeightLarge);
 
 #if UNITY_EDITOR
-            _debugRoundField = BuildDebugRoundField(root);
+            // 실제 빌드에는 애초에 안 들어가는 코드(#if UNITY_EDITOR)지만, 에디터
+            // 안에서도 스크린샷 찍을 때처럼 잠깐 감추고 싶을 수 있어서 UiSkin의
+            // 체크박스로 한 번 더 감싼다(사용자 확정, 2026-09-11) — 코드/재컴파일 없이
+            // Inspector에서 바로 켜고 끌 수 있다.
+            if (UiTheme.ShowTestRoundField)
+                _debugRoundField = BuildDebugRoundField(root);
 #endif
         }
 
