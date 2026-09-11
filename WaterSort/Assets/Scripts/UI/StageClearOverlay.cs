@@ -100,7 +100,10 @@ namespace ColorSort.UI
         /// 전환 — 그 작업이 끝날 때까지, 그리고 최소 <see cref="UiTheme.StageClearHoldTime"/>
         /// 초가 지날 때까지 둘 다 기다린 뒤에야 3구간(페이드아웃)으로 넘어간다.
         /// </summary>
-        public static async Task Play(Handle overlay, Func<Task> onHoldPhase)
+        /// <param name="burstColor">원형 파티클 축하 이펙트 색 — 이 라운드를 클리어한
+        /// 마지막 물의 색(GameView가 넘겨줌, 2026-09-11). 못 구했으면 호출부가
+        /// UiTheme.StageClearBurstColor(파란 계열 기본값)를 넘긴다.</param>
+        public static async Task Play(Handle overlay, Func<Task> onHoldPhase, Color burstColor)
         {
             SoundService.Instance?.Play(SoundService.Sfx.StageClear); // 연출이 뜨는 순간 한 번.
 
@@ -121,10 +124,10 @@ namespace ColorSort.UI
                 if (!burstStarted && t >= 0.5f)
                 {
                     burstStarted = true;
-                    StageClearBurst.Play(overlay.BurstLayer);
+                    StageClearBurst.Play(overlay.BurstLayer, burstColor);
                 }
             });
-            if (!burstStarted) StageClearBurst.Play(overlay.BurstLayer); // 방어적 — 프레임이 너무 커서 0.5 지점을 건너뛴 경우.
+            if (!burstStarted) StageClearBurst.Play(overlay.BurstLayer, burstColor); // 방어적 — 프레임이 너무 커서 0.5 지점을 건너뛴 경우.
 
             // 2) 유지: 텍스트/배경 그대로 둔 채 실제 라운드 전환을 실행.
             // 버그 수정(2026-09-08): onHoldPhase가 만드는 새 GameView는 canvas의 맨

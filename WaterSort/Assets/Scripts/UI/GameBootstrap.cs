@@ -128,7 +128,7 @@ namespace ColorSort.UI
                     var gameView = GameView.Build(canvas.transform, thisRoundId, session, new GameView.Callbacks
                     {
                         OnBack = ShowTitle,
-                        OnCleared = () => PlayStageClearThenAdvance()
+                        OnCleared = burstColor => PlayStageClearThenAdvance(burstColor)
                     }, showHintChargeAnimation);
                     activeScreen = (RectTransform)gameView.transform;
                 }
@@ -142,7 +142,7 @@ namespace ColorSort.UI
             // 참고) → 다음 라운드로 자동 진행. 실제 화면 교체(ShowGameAsync, 이미 다
             // 만들어진 뒤에 이전 화면과 교체하므로 화면이 비어 보이는 틈이 없음)는
             // 2구간(유지) 동안 콜백으로 실행된다.
-            async void PlayStageClearThenAdvance()
+            async void PlayStageClearThenAdvance(Color burstColor)
             {
                 roundId++;
                 ProgressStore.SaveNextRoundId(roundId);
@@ -179,7 +179,7 @@ namespace ColorSort.UI
                     {
                         if (showInterstitial) await InterstitialAdService.ShowAsync(AdUnitIds.Interstitial);
                         await ShowGameAsync(showHintChargeAnimation: hintCharged);
-                    });
+                    }, burstColor);
                 }
                 catch (System.Exception e)
                 {

@@ -379,6 +379,10 @@ namespace ColorSort.UI
         public const float StageClearBurstParticleSize = 30f;
         public const float StageClearBurstMaxDistance = 380f;
         public const float StageClearBurstDuration = 0.7f;
+        // 파티클 색은 이제 "이 라운드를 마지막으로 완성시킨 물 색"으로 매번 바뀐다
+        // (GameView._lastCompletedColor → GameBootstrap → StageClearOverlay.Play,
+        // 2026-09-11 — 예전엔 항상 이 값 고정). 그 색을 못 구한 경우에만 쓰는
+        // 방어적 기본값으로 남겨 둔다.
         public static readonly Color StageClearBurstColor = PrimaryColor;
 
         // 물병 하나를 한 색으로 다 채워 "완성"됐을 때 그 병 윗부분에서 잠깐 튀는 작은

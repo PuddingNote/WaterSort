@@ -1719,6 +1719,33 @@ Raycaster 없이 Canvas만 추가했다.
 버튼이 여전히 정상 동작하는지는 사람이 직접 확인해야 한다 — 특히 여러 병을
 빠르게 연달아 탭하는 경우, 붓는 중인 병 근처를 탭하는 경우를 눈여겨볼 것.
 
+## 스테이지 클리어 파티클 색을 마지막으로 완성한 물 색에 맞춤 (2026-09-11)
+
+`StageClearBurst`는 항상 `UiTheme.StageClearBurstColor`(파란 계열,
+PrimaryColor) 고정이었는데, "이 라운드를 마지막으로 완성시킨 물 색"으로
+매번 바뀌게 해달라는 요청. `BottleCompleteBurst`(병 완성 축하 이펙트)를
+색 인자로 확장했던 것과 같은 패턴.
+
+- **`GameView._lastCompletedColor`**(신규): `PerformMove`가 도착 병 완성
+  (`IsFullyStacked`)을 감지할 때마다 그 색(`WaterPalette.Get(TopColor)`)으로
+  갱신한다 — 병 완성 축하 이펙트 색을 정하는 바로 그 지점.
+- **왜 이 값이 항상 "마지막" 값과 일치하는가**: 이동은 출발 병 또는 도착 병
+  중 하나만 resolved로 바뀌는 게 아니라, 라운드를 클리어하는 이동은 반드시
+  도착 병을 완전히 채우면서 동시에 출발 병을 완전히 비운다(그래야 둘 다
+  resolved가 되어 전체가 클리어됨) — 즉 라운드를 클리어하는 이동은 항상
+  `IsFullyStacked(도착 병)`이 참인 분기를 타므로, 그 이동이 일어나는 시점에
+  `_lastCompletedColor`가 정확히 그 색으로 갱신돼 있다.
+- **전달 경로**: `EvaluateBoardState`가 클리어 판정 시
+  `OnCleared.Invoke(_lastCompletedColor ?? UiTheme.StageClearBurstColor)` →
+  `GameView.Callbacks.OnCleared`를 `Action` → `Action<Color>`로 확장 →
+  `GameBootstrap.PlayStageClearThenAdvance(Color burstColor)` →
+  `StageClearOverlay.Play(overlay, onHoldPhase, burstColor)` →
+  `StageClearBurst.Play(layer, burstColor)`(파티클 생성 시 이 색으로 틴트).
+  `UiTheme.StageClearBurstColor`는 이제 "색을 못 구했을 때만" 쓰는 방어적
+  기본값으로 격하됐다(정상 흐름에서는 항상 실제 완성 색이 넘어옴).
+
+## 아직 정하지 않은 것
+
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접
   플레이하며 계속 조정 중이다 — 지금까지의 실측은 전부 "솔버 기준 실제로
   풀리는가/몇 수인가"이지 사람의 체감 난이도가 아니다.

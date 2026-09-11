@@ -20,7 +20,11 @@ namespace ColorSort.UI
         /// <param name="layer">StageClearOverlay.Show가 미리 만들어 둔 빈 컨테이너
         /// (Background와 Text 사이 z-order에 이미 자리 잡혀 있음, 라운드 클리어
         /// 오버레이와 생명주기를 같이함) — 여기에 파티클을 채워 넣고 재생만 한다.</param>
-        public static void Play(RectTransform layer)
+        /// <param name="color">파티클 색 — 이 라운드를 클리어한 마지막 물의 색
+        /// (WaterPalette)을 그대로 넘긴다. 항상 파란 계열(PrimaryColor)이던 걸
+        /// "마지막으로 채운 물 색"에 맞추자는 요청(2026-09-11) — BottleCompleteBurst와
+        /// 같은 방식.</param>
+        public static void Play(RectTransform layer, Color color)
         {
             if (layer == null) return;
 
@@ -35,7 +39,7 @@ namespace ColorSort.UI
                 float angleRad = angleDeg * Mathf.Deg2Rad;
                 directions[i] = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
 
-                var img = UiFactory.CreateImage(layer, "Particle", UiTheme.LoadingSpinnerSprite, UiTheme.StageClearBurstColor);
+                var img = UiFactory.CreateImage(layer, "Particle", UiTheme.LoadingSpinnerSprite, color);
                 img.type = Image.Type.Simple; // CreateImage 기본값(Sliced)이 아니라 원본 그림 그대로.
                 img.preserveAspect = true;
                 img.raycastTarget = false;

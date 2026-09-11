@@ -23,7 +23,10 @@ namespace ColorSort.UI
         public sealed class Callbacks
         {
             public Action OnBack;
-            public Action OnCleared;
+            /// <summary>라운드가 클리어된 순간 호출 — 인자는 이 라운드를 클리어한
+            /// 마지막 물의 색(스테이지 클리어 파티클 색을 그 색으로 맞추는 데 씀,
+            /// 2026-09-11). 못 구했으면 UiTheme.StageClearBurstColor(기본값).</summary>
+            public Action<Color> OnCleared;
         }
 
         private PuzzleSession _session;
@@ -46,6 +49,13 @@ namespace ColorSort.UI
         private Image _hintBadgeImage;
         private RectTransform _watchAdBadge; // 병 추가 버튼 위 "광고 봐야 함" 이미지 배지.
         private RectTransform _hintAdBadge;  // 힌트가 0개일 때 힌트 버튼 위에 뜨는 같은 배지.
+
+        /// <summary>가장 최근에 한 색으로 완성된 병의 물 색 — 그 이동으로 라운드가
+        /// 클리어됐으면 스테이지 클리어 파티클 색을 여기 맞춘다(2026-09-11 사용자
+        /// 요청: "항상 파란 계열이던 걸 마지막으로 채운 물 색으로"). PerformMove가
+        /// 병 완성을 감지할 때마다 갱신하고, EvaluateBoardState가 클리어 판정
+        /// 시점에 OnCleared 콜백으로 넘긴다.</summary>
+        private Color? _lastCompletedColor;
 
         /// <summary>이번 라운드에 "광고 시청 → 힌트 1개"를 이미 한 번 썼는지. 라운드가
         /// 바뀌면 GameView 자체가 새로 만들어져서 자연히 false로 돌아가고, 새로고침
@@ -457,8 +467,20 @@ namespace ColorSort.UI
                 // 이펙트를 터뜨린다 — 물이 실제로 다 차오르는 시점(붓기 들어올리기+흐르기가
                 // 끝나는 때)에 맞춰 잠깐 늦춰서 재생한다. 도착 병은 붓기 전엔 IsFull이면
                 // 애초에 부을 수 없으니, 지금 가득 찼다면 방금 이 이동으로 완성된 것이다.
-                if (IsFullyStacked(_session.Board.Containers[result.ToIndex]))
+                //
+                // 이 색은 _lastCompletedColor에도 저장해 둔다 — 만약 이 이동으로 라운드
+                // 자체가 클리어됐다면(모든 병이 resolved) 그게 곧 "이 라운드를 마지막으로
+                // 완성시킨 물 색"이라, 스테이지 클리어 파티클 색을 여기 맞춘다(2026-09-11).
+                // 이동은 항상 출발 병을 완전히 비우거나 도착 병을 완전히 채워야만 둘 다
+                // resolved가 될 수 있으므로, 라운드를 클리어하는 이동은 반드시 이 분기를
+                // 탄다 — 못 구하는 경우는 사실상 없지만 EvaluateBoardState가 방어적으로
+                // 기본값(UiTheme.StageClearBurstColor)을 대신 쓴다.
+                var toContainer = _session.Board.Containers[result.ToIndex];
+                if (IsFullyStacked(toContainer))
+                {
+                    if (toContainer.TopColor.HasValue) _lastCompletedColor = WaterPalette.Get(toContainer.TopColor.Value);
                     StartCoroutine(PlayBottleCompleteBurstAfterPour(result.ToIndex));
+                }
             }
             else
             {
@@ -819,7 +841,7 @@ namespace ColorSort.UI
             if (_session.IsCleared)
             {
                 Debug.Log("[GameView] 라운드 클리어! — TODO: 결과 화면");
-                _callbacks?.OnCleared?.Invoke();
+                _callbacks?.OnCleared?.Invoke(_lastCompletedColor ?? UiTheme.StageClearBurstColor);
             }
             else if (!_session.HasAnyValidMove)
             {
