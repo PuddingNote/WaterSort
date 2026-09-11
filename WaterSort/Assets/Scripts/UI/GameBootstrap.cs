@@ -24,6 +24,15 @@ namespace ColorSort.UI
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Boot()
         {
+            // 모바일 최적화(2026-09-11, 빌드 전 점검) — Unity의 기본 targetFrameRate(-1
+            // = "플랫폼 기본값")는 기기/전력 상태에 따라 실제로 30fps 근처로 떨어지는
+            // 경우가 있고, vSyncCount가 켜진 채면 디스플레이 주사율에 맞춰 프레임이
+            // 묶여버린다(요즘 폰은 90/120Hz도 흔함) — 둘 다 애니메이션이 매끄럽게
+            // 안 보이는("약간 렉 걸리는 느낌") 흔한 원인이다. vSync를 끄고 60fps를
+            // 명시적으로 못박아서 기기별 기본값에 안 휘둘리게 한다.
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = 60;
+
             var root = new GameObject("GameBootstrap");
             UnityEngine.Object.DontDestroyOnLoad(root);
             EnsureEventSystem(root.transform);

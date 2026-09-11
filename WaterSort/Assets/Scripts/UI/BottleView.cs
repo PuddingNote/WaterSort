@@ -24,6 +24,15 @@ namespace ColorSort.UI
         // 보일 만큼 흐려서(물 색깔 띠만 둥둥 떠 있는 것처럼 보임) 0.16으로 올렸다.
         private static readonly Color OutlinePlaceholder = new Color(1f, 1f, 1f, 0.16f);
 
+        // GetWorldCorners용으로 매 프레임 재사용하는 버퍼(모바일 최적화, 2026-09-11) —
+        // WaterSurfaceWorldPosition은 붓는 동안 물줄기 갱신에 매 프레임 불리고,
+        // RelayoutSegments는 붓는 동안 한 프레임에 여러 번 불린다. 원래는 호출마다
+        // `new Vector3[4]`를 새로 만들었는데, GetWorldCorners는 넘겨준 배열에 그냥
+        // 값만 채워 넣을 뿐이라 재사용해도 안전하다(이 클래스 전체가 Unity 메인
+        // 스레드에서만 호출되므로 동시 접근 걱정 없음) — 붓는 애니메이션 내내 쌓이던
+        // 작은 GC 할당을 없앤다.
+        private static readonly Vector3[] WorldCornersBuffer = new Vector3[4];
+
         public RectTransform Root { get; }
 
         /// <summary>실제로 기울어지는 그림 루트 — PourAnimator.SetTilt가 이 transform만 돌린다.</summary>
@@ -485,10 +494,9 @@ namespace ColorSort.UI
         /// 매 프레임 같이 올라간다.</summary>
         public Vector3 WaterSurfaceWorldPosition()
         {
-            var corners = new Vector3[4];
-            FillArea.GetWorldCorners(corners); // 0=BL, 1=TL, 2=TR, 3=BR
-            Vector3 bottomCenter = (corners[0] + corners[3]) * 0.5f;
-            Vector3 topCenter = (corners[1] + corners[2]) * 0.5f;
+            FillArea.GetWorldCorners(WorldCornersBuffer); // 0=BL, 1=TL, 2=TR, 3=BR
+            Vector3 bottomCenter = (WorldCornersBuffer[0] + WorldCornersBuffer[3]) * 0.5f;
+            Vector3 topCenter = (WorldCornersBuffer[1] + WorldCornersBuffer[2]) * 0.5f;
             float filledFraction = Capacity > 0 ? Mathf.Clamp01(FilledUnitCount / Capacity) : 0f;
             return Vector3.Lerp(bottomCenter, topCenter, filledFraction);
         }
@@ -614,12 +622,11 @@ namespace ColorSort.UI
             // 모서리를 측정해서 _waterBands 로컬 좌표로 바꾼다 — PourAnimator가
             // 스파웃 위치를 구할 때 쓰는 "측정" 패턴과 같은 방식이라, 상수로 미리
             // 계산해 둔 값과 실제 라이브 값 사이에 오차가 생길 여지가 없다.
-            var worldCorners = new Vector3[4];
-            FillArea.GetWorldCorners(worldCorners); // 0=BL, 1=TL, 2=TR, 3=BR
-            float blY = _waterBands.InverseTransformPoint(worldCorners[0]).y;
-            float tlY = _waterBands.InverseTransformPoint(worldCorners[1]).y;
-            float trY = _waterBands.InverseTransformPoint(worldCorners[2]).y;
-            float brY = _waterBands.InverseTransformPoint(worldCorners[3]).y;
+            FillArea.GetWorldCorners(WorldCornersBuffer); // 0=BL, 1=TL, 2=TR, 3=BR
+            float blY = _waterBands.InverseTransformPoint(WorldCornersBuffer[0]).y;
+            float tlY = _waterBands.InverseTransformPoint(WorldCornersBuffer[1]).y;
+            float trY = _waterBands.InverseTransformPoint(WorldCornersBuffer[2]).y;
+            float brY = _waterBands.InverseTransformPoint(WorldCornersBuffer[3]).y;
 
             // 물이 고이는 바닥 = 네 모서리 중 가장 낮은 점(기울면 아래쪽 두 모서리 중
             // 한쪽). 물이 넘치기 직전의 최대 수면 = 병 입구(위쪽 변, TL·TR)의 두

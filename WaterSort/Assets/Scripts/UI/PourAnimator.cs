@@ -422,15 +422,22 @@ namespace ColorSort.UI
         private static float StreamThickness(int count)
             => Mathf.Clamp(UiTheme.PourStreamBaseThickness + count * 1.5f, 10f, 26f);
 
+        // GetWorldCorners용 재사용 버퍼(모바일 최적화, 2026-09-11) — 아래 세 메서드
+        // 전부 붓기 애니메이션 내내(스파웃 위치는 매 프레임 여러 번) 불리는데, 원래는
+        // 호출마다 `new Vector3[4]`를 새로 만들었다. GetWorldCorners는 넘긴 배열에
+        // 값만 채워 넣고, 이 세 메서드는 그 값을 즉시 읽어 Vector3(값 타입 — 복사됨)
+        // 하나만 반환하므로 버퍼를 공유해도 안전하다(전부 Unity 메인 스레드에서만
+        // 호출되고, 서로 겹쳐 호출되지 않음). 붓기마다 쌓이던 작은 GC 할당을 없앤다.
+        private static readonly Vector3[] CornersBuffer = new Vector3[4];
+
         /// <summary>병 입구(물이 드나드는 지점) 월드 좌표 — FillArea 위쪽 변의 중앙.
         /// 안 기울었을 때(도착 병, 또는 붓는 병의 기울기 0 기준점) 쓴다. 붓는 병이
         /// 실제로 기울어진 동안의 물줄기 시작점은 <see cref="SpoutWorldPosition"/>을 쓴다
         /// — 입구 한복판이 아니라 처진 쪽 모서리라야 실제로 물이 흘러나오는 지점과 맞다.</summary>
         private static Vector3 MouthWorldPosition(BottleView bottle)
         {
-            var corners = new Vector3[4];
-            bottle.FillArea.GetWorldCorners(corners); // 0=BL, 1=TL, 2=TR, 3=BR
-            return (corners[1] + corners[2]) * 0.5f;
+            bottle.FillArea.GetWorldCorners(CornersBuffer); // 0=BL, 1=TL, 2=TR, 3=BR
+            return (CornersBuffer[1] + CornersBuffer[2]) * 0.5f;
         }
 
         /// <summary>기울어진 병에서 물이 실제로 흘러나오는 지점(스파웃) — 입구 양쪽
@@ -438,16 +445,14 @@ namespace ColorSort.UI
         /// 자연히 <see cref="MouthWorldPosition"/>과 같은 결과가 된다.</summary>
         private static Vector3 SpoutWorldPosition(BottleView bottle)
         {
-            var corners = new Vector3[4];
-            bottle.FillArea.GetWorldCorners(corners); // 0=BL, 1=TL, 2=TR, 3=BR
-            return corners[1].y <= corners[2].y ? corners[1] : corners[2];
+            bottle.FillArea.GetWorldCorners(CornersBuffer); // 0=BL, 1=TL, 2=TR, 3=BR
+            return CornersBuffer[1].y <= CornersBuffer[2].y ? CornersBuffer[1] : CornersBuffer[2];
         }
 
         private static float WorldHeight(RectTransform rect)
         {
-            var corners = new Vector3[4];
-            rect.GetWorldCorners(corners);
-            return corners[1].y - corners[0].y; // TL.y - BL.y
+            rect.GetWorldCorners(CornersBuffer);
+            return CornersBuffer[1].y - CornersBuffer[0].y; // TL.y - BL.y
         }
 
         private static Vector2 ToLocal(RectTransform relativeTo, Vector3 worldPos)

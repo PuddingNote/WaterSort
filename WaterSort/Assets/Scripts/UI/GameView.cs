@@ -121,6 +121,11 @@ namespace ColorSort.UI
             UiFactory.Stretch(effectsLayer);
             effectsLayer.gameObject.GetComponent<Image>().raycastTarget = false;
             _effectsLayer = effectsLayer; // 병 완성 축하 이펙트(BottleCompleteBurst)도 이 레이어에 얹는다.
+            // BottleArea와 같은 이유(모바일 최적화, 2026-09-11) — 물줄기·붓는 병·파티클이
+            // 매 프레임 움직여서 따로 뗀다. 여기 그래픽은 전부 raycastTarget=false라
+            // (탭 판정을 가로채면 안 됨, 위 GetComponent<Image>().raycastTarget=false와
+            // 그 안에서 만들어지는 모든 요소) GraphicRaycaster는 필요 없다.
+            effectsLayer.gameObject.AddComponent<Canvas>();
 
             _pourAnimator = new PourAnimator(this, _session, effectsLayer);
 
@@ -215,6 +220,18 @@ namespace ColorSort.UI
             // 붙은 채로 이 영역 안에서 가운데 정렬되면 된다.
             var rows = UiFactory.AddVerticalLayout(_bottleArea, spacing: UiTheme.BottleRowGap, forceExpandWidth: true, forceExpandHeight: false);
             rows.childAlignment = TextAnchor.MiddleCenter;
+
+            // 모바일 최적화(2026-09-11, 빌드 전 점검) — 붓는 동안 물 세그먼트 크기·회전이
+            // 매 프레임 바뀌는데, 이게 전부 같은(단 하나뿐인) Canvas 안에 있으면 Unity가
+            // 그 변화를 반영할 때마다 캔버스 전체(상/하단 바, 안 움직이는 다른 병들 포함)의
+            // 배치(geometry batch)를 다시 계산한다 — 실제로 안 바뀌는 UI까지 매 프레임
+            // 다시 그릴 준비를 하는 셈이라 병이 많을수록 손해가 커진다. 병 영역만 별도
+            // Canvas로 떼어내면 그 다시 계산 범위가 병 영역 안으로만 좁혀진다(공식 uGUI
+            // 최적화 가이드의 "여러 Canvas로 나누기"). 병은 Button(탭 판정)이라 자체
+            // GraphicRaycaster가 있어야 별도 Canvas 밑에서도 탭이 인식된다 — 안 붙이면
+            // 상위 Canvas의 Raycaster가 이 밑의 그래픽은 못 찾아서 병을 못 누르게 된다.
+            _bottleArea.gameObject.AddComponent<Canvas>();
+            _bottleArea.gameObject.AddComponent<GraphicRaycaster>();
         }
 
         private void BuildBottomBar(RectTransform root)
