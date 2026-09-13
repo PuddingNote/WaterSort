@@ -188,6 +188,10 @@ namespace ColorSort.UI
         public static readonly Color DialogBackground = new Color32(0x20, 0x24, 0x4A, 0xFF);
         public static readonly Color DimBackground = new Color32(0x0A, 0x0A, 0x1A, 0xA6); // 다이얼로그 뒤 딤 처리(알파는 기존 0.65 유지, 색만 변경)
 
+        // PRIVACY OPTIONS 버튼(UMP, 2026-09-13) — CLOSE(PrimaryColor)와 구분되는
+        // 톤이 필요해서 이미 있는 SecondaryColor를 그대로 재사용(새 색 안 만듦).
+        public static readonly Color PrivacyOptionsButtonColor = SecondaryColor;
+
         // 설정 창 슬라이더(BGM/SFX 볼륨) — 참고 이미지 톤(어두운 트랙 + 청록 채움 + 노란 핸들).
         public static readonly Color SettingsToggleOnColor = PrimaryColor;                       // ON = 청록
         public static readonly Color SettingsToggleOffColor = new Color32(0x55, 0x5D, 0x6E, 0xFF); // OFF = 회색(Disabled와 같은 톤)
@@ -222,6 +226,15 @@ namespace ColorSort.UI
         // 설정 창 규격 — 확인 다이얼로그보다 세로로 길다(제목 + 두 줄(BGM/SFX) + 닫기).
         // 세 그룹(제목 / BGM·SFX / CLOSE) 사이를 넉넉히 띄우려고 높이를 키웠다(2026-09-10).
         public const float SettingsDialogHeight = 720f;
+        // PRIVACY OPTIONS 버튼(UMP, 2026-09-13)까지 들어갈 때 쓰는 높이 — Google
+        // 정책상 이 버튼은 PrivacyOptionsRequirementStatus가 Required인 지역에서만
+        // 보여야 해서(ConsentService 참고) 그 외 지역에서는 기존 SettingsDialogHeight
+        // 그대로, 버튼이 필요한 경우에만 이 값을 쓴다(SettingsDialog.Show 참고).
+        public const float SettingsDialogHeightWithPrivacy = 860f;
+        // PRIVACY OPTIONS/CLOSE 둘 다 이 폭으로 통일(사용자 확정, 2026-09-13) —
+        // 공용 DialogButtonWidth(300)는 ConfirmDialog가 두 버튼을 나란히 놓는 데
+        // 쓰고 있어서 그대로 두고, 설정 창 전용 값을 따로 둔다.
+        public const float SettingsWideButtonWidth = 600f;
         public const float SettingsRowHeight = 96f;
         public const float SettingsToggleWidth = 150f;
         public const float SettingsTitleFontSize = 68f; // 공용 DialogTitleFontSize(56)보다 크게(사용자 확정).

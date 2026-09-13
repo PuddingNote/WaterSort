@@ -28,10 +28,16 @@ namespace ColorSort.UI
             var dim = UiFactory.CreateImage(root, "Dim", null, UiTheme.DimBackground);
             UiFactory.Stretch((RectTransform)dim.transform);
 
+            // Google 정책상 PRIVACY OPTIONS 버튼은 ConsentInformation이 "필요하다"고
+            // 판정한 지역(EEA/영국/스위스)에서만 보여야 한다(ConsentService 참고) —
+            // 그 외 지역에서는 버튼 자체를 안 만들고, 패널 높이도 원래 값 그대로 둔다.
+            bool showPrivacyOptions = ConsentService.IsPrivacyOptionsRequired;
+            float panelHeight = showPrivacyOptions ? UiTheme.SettingsDialogHeightWithPrivacy : UiTheme.SettingsDialogHeight;
+
             var panel = UiFactory.CreateDialogPanel(root, "Panel");
             panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
             panel.pivot = new Vector2(0.5f, 0.5f);
-            panel.sizeDelta = new Vector2(UiTheme.DialogWidth, UiTheme.SettingsDialogHeight);
+            panel.sizeDelta = new Vector2(UiTheme.DialogWidth, panelHeight);
             panel.anchoredPosition = Vector2.zero;
 
             var title = UiFactory.CreateText(panel, "SETTINGS", UiTheme.SettingsTitleFontSize, UiTheme.TextPrimary);
@@ -48,12 +54,37 @@ namespace ColorSort.UI
                 onToggle: on => { SettingsStore.BgmEnabled = on; SoundService.Instance?.StartBgm(); SoundService.Instance?.ApplySettings(); },
                 onVolume: v => { SettingsStore.BgmVolume = v; SoundService.Instance?.ApplySettings(); });
 
-            BuildRow(panel, "SFX", yFromTop: -290f - UiTheme.SettingsRowHeight - 44f,
+            float sfxYFromTop = -290f - UiTheme.SettingsRowHeight - 44f;
+            BuildRow(panel, "SFX", yFromTop: sfxYFromTop,
                 isOn: SettingsStore.SfxEnabled, volume: SettingsStore.SfxVolume,
                 onToggle: on => { SettingsStore.SfxEnabled = on; SoundService.Instance?.ApplySettings(); },
                 onVolume: v => { SettingsStore.SfxVolume = v; SoundService.Instance?.ApplySettings(); });
 
-            var closeButton = UiFactory.CreateButton(panel, "CLOSE", UiTheme.DialogButtonWidth, UiTheme.DialogButtonHeight,
+            if (showPrivacyOptions)
+            {
+                // SFX 줄과 같은 간격(44)으로 그 아래 이어 붙인다 — BGM/SFX 사이 간격과 같은 패턴.
+                float privacyYFromTop = sfxYFromTop - UiTheme.SettingsRowHeight / 2f - 44f - UiTheme.DialogButtonHeight / 2f;
+                var privacyButton = UiFactory.CreateButton(panel, "PRIVACY OPTIONS", UiTheme.SettingsWideButtonWidth, UiTheme.DialogButtonHeight,
+                    UiTheme.PrivacyOptionsButtonColor, () => ConsentService.ShowPrivacyOptionsForm(null));
+                var privacyRect = (RectTransform)privacyButton.transform;
+                privacyRect.anchorMin = privacyRect.anchorMax = new Vector2(0.5f, 1f);
+                privacyRect.pivot = new Vector2(0.5f, 0.5f);
+                privacyRect.anchoredPosition = new Vector2(0f, privacyYFromTop);
+
+                // "PRIVACY OPTIONS"는 다른 버튼 라벨(CLOSE/RESET 등)보다 훨씬 길어서
+                // CreateButton 기본 폰트 크기(FontSizeButton)로는 두 줄로 꺾인다 —
+                // 이 버튼만 한 줄 유지하며 자동으로 줄여 넣는다.
+                var privacyLabel = privacyButton.GetComponentInChildren<TMP_Text>();
+                if (privacyLabel != null)
+                {
+                    privacyLabel.enableWordWrapping = false;
+                    privacyLabel.enableAutoSizing = true;
+                    privacyLabel.fontSizeMin = 28f;
+                    privacyLabel.fontSizeMax = UiTheme.FontSizeButton;
+                }
+            }
+
+            var closeButton = UiFactory.CreateButton(panel, "CLOSE", UiTheme.SettingsWideButtonWidth, UiTheme.DialogButtonHeight,
                 UiTheme.PrimaryColor, () => { Close(root); onClosed?.Invoke(); });
             var closeRect = (RectTransform)closeButton.transform;
             closeRect.anchorMin = closeRect.anchorMax = new Vector2(0.5f, 0f);

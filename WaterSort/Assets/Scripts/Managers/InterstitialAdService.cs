@@ -72,6 +72,13 @@ namespace ColorSort.Managers
             if (_initialized) { onReady(); return; }
             if (_initializing) return;
 
+            // RewardedAdService와 같은 이유 — 동의(ConsentService) 전엔 SDK를 안 켠다.
+            if (!ConsentService.CanRequestAds)
+            {
+                Debug.Log("[InterstitialAdService] 동의 대기 중 — 아직 광고 SDK를 초기화하지 않음");
+                return;
+            }
+
             _initializing = true;
             MobileAds.Initialize(_ =>
             {

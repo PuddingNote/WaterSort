@@ -1744,14 +1744,65 @@ PrimaryColor) 고정이었는데, "이 라운드를 마지막으로 완성시킨
   `UiTheme.StageClearBurstColor`는 이제 "색을 못 구했을 때만" 쓰는 방어적
   기본값으로 격하됐다(정상 흐름에서는 항상 실제 완성 색이 넘어옴).
 
+## GDPR 동의(Google UMP) 연동 + 설정 창 Privacy Options 버튼 (2026-09-13)
+
+전 세계 배포 확정에 따라 EEA/영국/스위스 이용자에게 GDPR 동의를 구해야
+한다. 메시지 문구·디자인 자체는 AdMob 콘솔(앱 > 개인정보 및 메시지)에서
+이미 작성 완료(사용자 확정) — 여기서는 그걸 실제로 요청·표시하는 SDK
+연동만 새로 짰다. 프로젝트에는 이미 Google Mobile Ads Unity Plugin
+v11.5.0이 임포트돼 있고(`Assets/GoogleMobileAds/`) Android 스크립팅 정의에
+`ADS_ENABLED`도 켜져 있어서(`RewardedAdService`/`InterstitialAdService`가
+더 이상 "미설치" 폴백이 아니라 실제로 동작하는 상태), UMP도 같은 플러그인에
+포함된 `GoogleMobileAds.Ump.Api`를 그대로 쓴다(별도 설치/asmdef 참조 불필요 —
+프리컴파일 DLL이라 자동으로 모든 asmdef에 잡힘).
+
+- **`Managers/ConsentService.cs`**(신규): `ConsentInformation.Update` →
+  `ConsentForm.LoadAndShowConsentFormIfRequired`을 감싼
+  `GatherConsent(Action onComplete)`. 해당 지역이 아니거나 이미 유효한 동의가
+  있으면 폼 없이 즉시 완료 — 지역 판정은 Google 서버가 한다. `CanRequestAds`
+  (동의 자체가 필요한 지역에서 아직 못 받았으면 false)와
+  `IsPrivacyOptionsRequired`(`PrivacyOptionsRequirementStatus == Required`)를
+  프로퍼티로 노출. `ShowPrivacyOptionsForm`은 이미 한 선택을 다시 열어
+  바꾸게 해주는 `ConsentForm.ShowPrivacyOptionsForm` 래퍼. `ADS_ENABLED`가
+  꺼진 빌드에서는 `CanRequestAds`가 항상 true(광고 서비스가 기존처럼 그대로
+  동작), `IsPrivacyOptionsRequired`는 항상 false(버튼 자체를 숨김).
+- **광고 SDK 초기화 순서 수정**: `RewardedAdService`/`InterstitialAdService`의
+  `EnsureInitialized`가 `MobileAds.Initialize`를 부르기 전에
+  `ConsentService.CanRequestAds`를 먼저 확인하도록 바꿨다 — GDPR상 동의가
+  필요한 지역에서 동의를 받기 전에 광고 SDK를 초기화(=네트워크 요청 시작)하면
+  안 되기 때문. 통과 못 하면 조용히 포기하고(`_initializing`도 안 세움) 이후
+  자연스러운 재시도 지점(다음 라운드, 광고 버튼 재시도 등)에서 다시 확인한다.
+- **`GameBootstrap.Boot()`**: 맨 앞에서 `ConsentService.GatherConsent(...)`를
+  부른다. 타이틀 화면은 이 결과를 기다리지 않고 그대로 뜨고(동의 폼이 필요한
+  지역이면 그 위에 자연스럽게 겹쳐 보임), 완료 콜백에서 세 광고 단위
+  (전면/병 추가/힌트)를 한 번씩 선제적으로 `Preload`한다 — EEA 등에서
+  `CanRequestAds`가 폼 응답 후에야 true가 되는 지연이 있어도, 유저가 실제
+  게임 화면에 도달할 즈음엔 이미 로드가 진행 중이게 하기 위함.
+- **설정 창 `PRIVACY OPTIONS` 버튼**(`SettingsDialog.cs`): 사용자가 첨부한
+  참고 스크린샷(타 게임)과 비슷한 위치 — BGM/SFX 줄과 CLOSE 버튼 사이. Google
+  정책상 이 버튼은 `IsPrivacyOptionsRequired`가 true인 지역에서만 보여야
+  해서(그 외 지역엔 다시 열 동의 자체가 없음) 조건부로만 만든다. 그만큼
+  패널이 더 길어져야 해서 `UiTheme.SettingsDialogHeightWithPrivacy`(860,
+  버튼 없을 땐 기존 720 그대로)를 따로 뒀다. 버튼 색은 CLOSE(PrimaryColor)와
+  구분되게 이미 있는 `SecondaryColor`를 재사용(`PrivacyOptionsButtonColor`
+  alias). 라벨 "PRIVACY OPTIONS"이 다른 버튼(CLOSE/RESET 등)보다 훨씬 길어
+  기본 폰트 크기로는 두 줄로 꺾이므로, 이 버튼만 `enableAutoSizing`으로 한 줄을
+  유지하며 줄여 넣는다.
+- **확인 필요(콘솔 쪽, 코드로 검증 불가)**: `ConsentDebugSettings.DebugGeography
+  = EEA`를 에디터/개발 빌드에만 강제해 뒀으니 에디터에서 실제로 폼이 뜨는지
+  직접 재생해서 확인할 것. 그리고 AdMob 콘솔의 GDPR 메시지 자체(문구 승인
+  상태, EEA 대상 설정)가 실제로 게시(Published)돼 있어야 `LoadAndShowConsentFormIfRequired`가
+  폼을 가져올 수 있다 — 초안(Draft) 상태로만 있으면 안 뜬다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접
   플레이하며 계속 조정 중이다 — 지금까지의 실측은 전부 "솔버 기준 실제로
   풀리는가/몇 수인가"이지 사람의 체감 난이도가 아니다.
-- 강제 업데이트/개인정보처리방침용 허브 저장소(`{계정}.github.io`) 준비
-  시점은 아직 안 다뤘다 — 필요해지는 시점에 `개인정보처리방침_재사용_가이드.md`를
-  다시 참고해 진행한다. 광고 SDK는 AdMob으로 확정됐다(아래 항목 참고).
+- 개인정보처리방침 초안(`docs/privacy-policy.html`, 영/한 + UMP 동의 섹션
+  포함)은 작성됐지만, 아직 게임 저장소 안에 있다 — `개인정보처리방침_재사용_가이드.md`가
+  권하는 `{계정}.github.io` 허브 저장소로의 이전(및 그에 맞춘 Play 콘솔 링크
+  등록)은 별도로 진행해야 한다. 광고 SDK는 AdMob으로 확정됐다(아래 항목 참고).
 - 힌트 광고(`HintRewarded`)는 지금 병 추가와 같은 AdMob 광고 단위를 쓴다 —
   분리하려면 콘솔에서 힌트용 보상형 단위를 만들고 `AdUnitIds.HintRewardedProd`만
   그 값으로 바꾸면 된다(코드 흐름은 그대로).

@@ -33,6 +33,20 @@ namespace ColorSort.UI
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 60;
 
+            // 전 세계 배포 확정(2026-09-13)에 따라 GDPR 동의(UMP)부터 수집한다 —
+            // 그 지역이 아니거나 이미 동의가 있으면 사용자는 아무것도 못 느끼고
+            // 바로 넘어간다. 타이틀 화면은 이 결과를 기다리지 않고 그대로 뜬다
+            // (동의 폼이 필요하면 그 위에 자연스럽게 겹쳐 보임) — 대신 동의가
+            // 끝나는 시점에 세 광고 단위를 한 번 미리 로드해 둬서, 폼 때문에
+            // CanRequestAds가 늦게 true가 되더라도(EEA 등) 유저가 실제로 게임
+            // 화면에 도달했을 때 이미 로드가 진행 중이게 한다.
+            ConsentService.GatherConsent(() =>
+            {
+                InterstitialAdService.Preload(AdUnitIds.Interstitial);
+                RewardedAdService.Preload(AdUnitIds.BonusContainerRewarded);
+                RewardedAdService.Preload(AdUnitIds.HintRewarded);
+            });
+
             var root = new GameObject("GameBootstrap");
             UnityEngine.Object.DontDestroyOnLoad(root);
             EnsureEventSystem(root.transform);

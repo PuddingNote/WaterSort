@@ -95,6 +95,16 @@ namespace ColorSort.Managers
             if (_initialized) { onReady(); return; }
             if (_initializing) return; // 이미 초기화 중 — 끝나면 이후 Preload 호출들이 알아서 로드함.
 
+            // GDPR 동의가 필요한 지역에서는 동의를 받기 전까지 광고 SDK 자체를
+            // 초기화하면 안 된다(ConsentService 참고) — 여기서 조용히 포기하고
+            // _initializing도 안 세워 둔다. 나중에 다시 Preload가 불리면(다음
+            // 라운드, 버튼 재시도 등) 그때 다시 이 체크를 통과하는지 본다.
+            if (!ConsentService.CanRequestAds)
+            {
+                Debug.Log("[RewardedAdService] 동의 대기 중 — 아직 광고 SDK를 초기화하지 않음");
+                return;
+            }
+
             _initializing = true;
             MobileAds.Initialize(_ =>
             {
