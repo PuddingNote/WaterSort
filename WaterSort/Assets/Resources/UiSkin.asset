@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: ColorSort.UI::ColorSort.UI.UiSkin
   ButtonBackground: {fileID: 2007210781, guid: dd2a28d3dad02d640924bfe281cbabe0, type: 3}
   IconButtonBackground: {fileID: 2007210781, guid: dd2a28d3dad02d640924bfe281cbabe0, type: 3}
+  ToggleButtonBackground: {fileID: 2007210781, guid: dd2a28d3dad02d640924bfe281cbabe0, type: 3}
   SettingsIcon: {fileID: 481218501, guid: 86155785dc509fb46b8ca05bfe4a1d28, type: 3}
   BackIcon: {fileID: 2114031508, guid: e199f90d2958f1543ae651c6df53e5b0, type: 3}
   UndoIcon: {fileID: -896799402, guid: f81cccf64f3c81f49ac1ffc2846de6a4, type: 3}
@@ -24,5 +25,15 @@ MonoBehaviour:
   BottleBackground: {fileID: 948232866, guid: bf8d8470b963417449ef893caac1c183, type: 3}
   BottleMask: {fileID: 1316251668, guid: eb2d4a21c40b80842b4030893606ed70, type: 3}
   WaterFill: {fileID: 0}
+  GlassHighlightPeakX: 0.28
+  GlassHighlightSoftness: 0.36
+  GlassHighlightMaxAlpha: 0.18
+  BottleCompleteBurstOffset: {x: 0, y: 0}
   LoadingSpinner: {fileID: 1349765751, guid: cb1693d2934224f4bb0220c4e97a805a, type: 3}
+  MainBgm: {fileID: 0}
+  ButtonTouchSfx: {fileID: 0}
+  RefreshSfx: {fileID: 0}
   PourSound: {fileID: 0}
+  BottleCompleteSfx: {fileID: 0}
+  StageClearSfx: {fileID: 0}
+  ShowTestRoundField: 1
