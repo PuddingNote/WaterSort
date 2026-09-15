@@ -249,7 +249,13 @@ namespace ColorSort.UI
             var fillRect = (RectTransform)fill.transform;
             fillRect.anchorMin = Vector2.zero;
             fillRect.anchorMax = new Vector2(0f, 1f);
-            fillRect.sizeDelta = new Vector2(handle, 0f);
+            // sizeDelta는 반드시 0 — Slider가 매 프레임 anchorMax.x만 value에 맞춰
+            // 조절하고 sizeDelta는 절대 안 건드리는데, 앵커 스트레치 모드에서
+            // sizeDelta.x는 "앵커로 계산된 폭 위에 추가로 더해지는 여분 폭"으로
+            // 작동한다. 예전엔 여기 handle을 넣어서 value=1(ON)일 때 Fill 오른쪽
+            // 끝이 Handle 이동 한계보다 handle픽셀만큼 튀어나와 보였다(사용자 제보,
+            // 2026-09-15 — Handle 크기를 키워봐도 여분 폭도 같이 커져서 그대로였음).
+            fillRect.sizeDelta = Vector2.zero;
             fillRect.anchoredPosition = Vector2.zero;
 
             // 핸들 — circle.png(있으면)로 둥근 손잡이, 없으면 노란 사각형.

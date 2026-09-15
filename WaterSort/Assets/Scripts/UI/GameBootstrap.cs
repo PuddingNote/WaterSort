@@ -57,6 +57,8 @@ namespace ColorSort.UI
             // 앱 전체에서 하나뿐인 사운드 재생기 — DontDestroyOnLoad 루트에 붙여
             // 타이틀↔게임↔스테이지클리어를 오가도 BGM이 안 끊긴다(SoundService 참고).
             SoundService.Create(root.transform);
+            // 진동(햅틱) 재생기도 같은 자리에 같은 이유로 둔다(HapticsService 참고).
+            HapticsService.Create(root.transform);
 
             int roundId = ProgressStore.LoadNextRoundId();
             RectTransform activeScreen = null;

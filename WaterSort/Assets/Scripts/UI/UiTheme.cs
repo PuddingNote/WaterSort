@@ -223,14 +223,15 @@ namespace ColorSort.UI
         public const float DialogButtonHeight = 110f;
         public const float DialogTitleFontSize = 56f;
 
-        // 설정 창 규격 — 확인 다이얼로그보다 세로로 길다(제목 + 두 줄(BGM/SFX) + 닫기).
-        // 세 그룹(제목 / BGM·SFX / CLOSE) 사이를 넉넉히 띄우려고 높이를 키웠다(2026-09-10).
-        public const float SettingsDialogHeight = 720f;
+        // 설정 창 규격 — 확인 다이얼로그보다 세로로 길다(제목 + 세 줄(BGM/SFX/HAPTICS)
+        // + 닫기). 그룹 사이를 넉넉히 띄우려고 높이를 키웠다(2026-09-10, HAPTICS
+        // 줄 추가로 2026-09-15에 다시 키움).
+        public const float SettingsDialogHeight = 850f;
         // PRIVACY OPTIONS 버튼(UMP, 2026-09-13)까지 들어갈 때 쓰는 높이 — Google
         // 정책상 이 버튼은 PrivacyOptionsRequirementStatus가 Required인 지역에서만
         // 보여야 해서(ConsentService 참고) 그 외 지역에서는 기존 SettingsDialogHeight
         // 그대로, 버튼이 필요한 경우에만 이 값을 쓴다(SettingsDialog.Show 참고).
-        public const float SettingsDialogHeightWithPrivacy = 860f;
+        public const float SettingsDialogHeightWithPrivacy = 1000f;
         // PRIVACY OPTIONS/CLOSE 둘 다 이 폭으로 통일(사용자 확정, 2026-09-13) —
         // 공용 DialogButtonWidth(300)는 ConfirmDialog가 두 버튼을 나란히 놓는 데
         // 쓰고 있어서 그대로 두고, 설정 창 전용 값을 따로 둔다.

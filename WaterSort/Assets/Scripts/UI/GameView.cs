@@ -486,7 +486,10 @@ namespace ColorSort.UI
             }
             else
             {
-                Debug.Log("[GameView] 무효 이동 — TODO: 진동/튕김 피드백");
+                // 물병을 골라 다음 물병을 골랐는데 옮길 수 없을 때(사용자 확정,
+                // 2026-09-15) — 무효 이동 자체를 알리는 피드백은 진동뿐이고, 소리는
+                // 없음(별도 요청 없었음).
+                HapticsService.Instance?.Play(HapticsService.Cue.InvalidMove);
                 EvaluateBoardState();
             }
 

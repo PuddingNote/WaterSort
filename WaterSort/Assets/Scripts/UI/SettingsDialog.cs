@@ -7,10 +7,13 @@ using UnityEngine.UI;
 namespace ColorSort.UI
 {
     /// <summary>
-    /// 사운드 설정 창(딤 배경 + 패널 + "SETTINGS" 제목 + BGM/SFX 두 줄 + CLOSE).
-    /// 각 줄은 [라벨] [ON/OFF 토글] [볼륨 슬라이더]. 값은 <see cref="SettingsStore"/>
-    /// (PlayerPrefs)가 진실 소스이고, 바꾸는 즉시 <see cref="SoundService.ApplySettings"/>/
-    /// <see cref="SoundService.StartBgm"/>로 실제 재생에 반영한다.
+    /// 사운드·진동 설정 창(딤 배경 + 패널 + "SETTINGS" 제목 + BGM/SFX/HAPTICS 세 줄
+    /// + (지역에 따라) PRIVACY OPTIONS + CLOSE). BGM/SFX 줄은 [라벨] [ON/OFF 토글]
+    /// [볼륨 슬라이더], HAPTICS 줄은 볼륨 개념이 없어 [라벨] [ON/OFF 토글]만.
+    /// 값은 <see cref="SettingsStore"/>/<see cref="HapticsStore"/>(둘 다 PlayerPrefs)가
+    /// 진실 소스이고, 바꾸는 즉시 <see cref="SoundService.ApplySettings"/>/
+    /// <see cref="SoundService.StartBgm"/>로 실제 재생에 반영한다(진동은 재생 시점에
+    /// 매번 HapticsStore를 다시 읽으므로 별도 반영 호출이 필요 없음).
     ///
     /// <see cref="ConfirmDialog"/>와 같은 패턴 — Canvas 직속에 붙여 최상단에 뜨고,
     /// 패널은 고정 크기라 레이아웃 그룹 없이 절대 좌표로 배치한다. 여는 쪽
@@ -47,8 +50,9 @@ namespace ColorSort.UI
             titleRect.sizeDelta = new Vector2(UiTheme.DialogWidth - 80f, 120f);
             titleRect.anchoredPosition = new Vector2(0f, -64f);
 
-            // 세 그룹(제목 / BGM·SFX / CLOSE) 사이를 넉넉히 띄운다 — BGM 줄 중심을
-            // 패널 위쪽 변에서 290 아래, 두 줄 사이는 RowHeight + 44.
+            // 그룹(제목 / BGM·SFX·HAPTICS / [PRIVACY OPTIONS] / CLOSE) 사이를 넉넉히
+            // 띄운다 — BGM 줄 중심을 패널 위쪽 변에서 290 아래, 그 아래 줄들은
+            // RowHeight + 44 간격으로 이어 붙인다.
             BuildRow(panel, "BGM", yFromTop: -290f,
                 isOn: SettingsStore.BgmEnabled, volume: SettingsStore.BgmVolume,
                 onToggle: on => { SettingsStore.BgmEnabled = on; SoundService.Instance?.StartBgm(); SoundService.Instance?.ApplySettings(); },
@@ -60,10 +64,17 @@ namespace ColorSort.UI
                 onToggle: on => { SettingsStore.SfxEnabled = on; SoundService.Instance?.ApplySettings(); },
                 onVolume: v => { SettingsStore.SfxVolume = v; SoundService.Instance?.ApplySettings(); });
 
+            // 볼륨 슬라이더가 없는 켬/끔 전용 줄(사용자 확정, 2026-09-15) — BGM/SFX와
+            // 같은 간격(RowHeight + 44)으로 그 아래 이어 붙인다.
+            float hapticsYFromTop = sfxYFromTop - UiTheme.SettingsRowHeight - 44f;
+            BuildToggleOnlyRow(panel, "HAPTICS", yFromTop: hapticsYFromTop,
+                isOn: HapticsStore.HapticsEnabled,
+                onToggle: on => HapticsStore.HapticsEnabled = on);
+
             if (showPrivacyOptions)
             {
-                // SFX 줄과 같은 간격(44)으로 그 아래 이어 붙인다 — BGM/SFX 사이 간격과 같은 패턴.
-                float privacyYFromTop = sfxYFromTop - UiTheme.SettingsRowHeight / 2f - 44f - UiTheme.DialogButtonHeight / 2f;
+                // HAPTICS 줄과 같은 간격(44)으로 그 아래 이어 붙인다 — 위 줄들 사이 간격과 같은 패턴.
+                float privacyYFromTop = hapticsYFromTop - UiTheme.SettingsRowHeight / 2f - 44f - UiTheme.DialogButtonHeight / 2f;
                 var privacyButton = UiFactory.CreateButton(panel, "PRIVACY OPTIONS", UiTheme.SettingsWideButtonWidth, UiTheme.DialogButtonHeight,
                     UiTheme.PrivacyOptionsButtonColor, () => ConsentService.ShowPrivacyOptionsForm(null));
                 var privacyRect = (RectTransform)privacyButton.transform;
@@ -134,6 +145,39 @@ namespace ColorSort.UI
             sliderRect.anchorMin = sliderRect.anchorMax = new Vector2(0f, 0.5f);
             sliderRect.pivot = new Vector2(0f, 0.5f);
             sliderRect.anchoredPosition = new Vector2(sliderX, 0f);
+        }
+
+        /// <summary>[라벨] [ON/OFF 토글]만 있는 한 줄(슬라이더 없음) — HAPTICS처럼
+        /// "세기" 개념이 없는 설정에 쓴다. BuildRow와 같은 라벨/토글 x좌표를 그대로
+        /// 써서 위 BGM/SFX 줄과 세로로 나란히 정렬된다(BuildRow와 일부 중복되지만,
+        /// 슬라이더 유무로 갈리는 폭을 억지로 하나의 함수에 합치는 것보다 낫다고
+        /// 판단해 그대로 둔다).</summary>
+        private static void BuildToggleOnlyRow(
+            RectTransform panel, string label, float yFromTop, bool isOn, Action<bool> onToggle)
+        {
+            var row = UiFactory.CreatePanel(panel, $"Row_{label}", Color.clear);
+            row.GetComponent<Image>().raycastTarget = false;
+            row.anchorMin = row.anchorMax = new Vector2(0.5f, 1f);
+            row.pivot = new Vector2(0.5f, 0.5f);
+            row.sizeDelta = new Vector2(UiTheme.DialogWidth - 100f, UiTheme.SettingsRowHeight);
+            row.anchoredPosition = new Vector2(0f, yFromTop);
+
+            const float labelWidth = 150f;
+            const float toggleX = 450f; // HAPTICS 토글만의 위치(사용자 확정, 2026-09-15) — BuildRow의 toggleX(라벨+슬라이더 정렬용)와는 별개.
+
+            var labelText = UiFactory.CreateText(row, label, UiTheme.FontSizeButton, UiTheme.TextPrimary, TextAlignmentOptions.MidlineLeft);
+            labelText.enableWordWrapping = false;
+            var labelRect = (RectTransform)labelText.transform;
+            labelRect.anchorMin = labelRect.anchorMax = new Vector2(0f, 0.5f);
+            labelRect.pivot = new Vector2(0f, 0.5f);
+            labelRect.sizeDelta = new Vector2(labelWidth, UiTheme.SettingsRowHeight);
+            labelRect.anchoredPosition = Vector2.zero;
+
+            var toggle = BuildToggle(row, isOn, onToggle);
+            var toggleRect = (RectTransform)toggle.transform;
+            toggleRect.anchorMin = toggleRect.anchorMax = new Vector2(0f, 0.5f);
+            toggleRect.pivot = new Vector2(0f, 0.5f);
+            toggleRect.anchoredPosition = new Vector2(toggleX, 0f);
         }
 
         /// <summary>ON/OFF 토글 버튼 — 상태에 따라 색(청록/회색)과 글자가 바뀐다.

@@ -1811,6 +1811,42 @@ PlayerPrefs 기본값도 0.5 → 0.4로 낮췄다 — PlayerPrefs 기본값이�
 저장해 본 기존 유저에게는 영향 없고, 아직 설정을 한 번도 안 건드린(=키 자체가
 없는) 최초 설치 유저에게만 새 기본값이 적용**된다.
 
+## 진동(햅틱) 추가 (2026-09-15)
+
+`HapticsStore`(PlayerPrefs 켬/끔, 기본 켜짐)와 `HapticsService`(SoundService와
+같은 자리·같은 생애주기로 GameBootstrap.Boot()가 DontDestroyOnLoad 루트에
+생성)를 새로 추가. Unity 표준 진동 API인 `Handheld.Vibrate()`는 세기·길이를
+지정할 수 없는 안드로이드 기본 진동 한 번뿐이라(플러그인 없이는 이게 전부),
+두 상황을 구분하려고 스테이지 클리어만 그 한 번을 0.12초 간격으로 두 번
+이어서(더블 펄스) 쓴다:
+
+- **무효 이동**(물병을 고르고 다음 물병을 골랐는데 옮길 수 없을 때) — 한 번
+  진동. `GameView.PerformMove`의 `TryMove` 실패 분기(원래 `TODO: 진동/튕김
+  피드백` 주석이 있던 자리)에 연결.
+- **스테이지 클리어** — 더블 펄스. `StageClearOverlay.Play`가 `StageClearSfx`를
+  트는 바로 그 줄 옆에 같이 연결(연출이 뜨는 순간 소리와 동시에).
+
+설정 창에는 BGM/SFX 두 줄 아래에 `HAPTICS` 켬/끔 전용 줄을 추가했다(볼륨
+개념이 없어 슬라이더는 없음 — `SettingsDialog.BuildToggleOnlyRow`, `BuildRow`와
+라벨/토글 x좌표를 맞춰 세로로 나란히 정렬). 줄이 하나 늘어난 만큼
+`UiTheme.SettingsDialogHeight`(720→850)/`SettingsDialogHeightWithPrivacy`
+(860→1000)도 같이 키웠다.
+
+## 슬라이더 Fill이 Handle 이동 한계보다 튀어나와 보이던 문제 수정 (2026-09-15)
+
+BGM/SFX 슬라이드바에서 값이 최대(ON)일 때 게이지(Fill)가 Handle 뒤로 살짝
+튀어나와 보인다는 제보 — Handle 크기를 60→70으로 키워도 그대로였다.
+
+원인은 `UiFactory.CreateSlider`의 `fillRect.sizeDelta = new Vector2(handle, 0f)`.
+Unity `Slider`는 매 프레임 `fillRect.anchorMax.x`만 `value`에 맞춰 조절하고
+`sizeDelta`는 절대 안 건드리는데, Fill은 앵커 스트레치 모드(`anchorMin=(0,0)`,
+`anchorMax=(value,1)`)라 이 모드에서 `sizeDelta.x`는 "앵커 폭 위에 추가로
+더해지는 여분 폭"으로 작동한다 — 즉 실제 Fill 폭 = `value × FillArea 폭 + handle`.
+Handle이 커질수록 이 여분 폭도 같이 커지는 구조라 Handle을 키워도 문제가
+안 없어진 것(오히려 심해지는 방향). `sizeDelta`를 `Vector2.zero`로 고쳐서
+Fill 폭이 순수 앵커 비율로만 결정되게 했다 — value=1일 때 Fill 오른쪽 끝이
+Handle 이동 한계와 정확히 일치한다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접

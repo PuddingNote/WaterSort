@@ -106,6 +106,7 @@ namespace ColorSort.UI
         public static async Task Play(Handle overlay, Func<Task> onHoldPhase, Color burstColor)
         {
             SoundService.Instance?.Play(SoundService.Sfx.StageClear); // 연출이 뜨는 순간 한 번.
+            HapticsService.Instance?.Play(HapticsService.Cue.StageClear); // 진동도 같은 순간(사용자 확정, 2026-09-15).
 
             float bgTarget = UiTheme.DimBackground.a; // 다이얼로그 딤 배경과 동일한 목표 알파(166/255).
 
