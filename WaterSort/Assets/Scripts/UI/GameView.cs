@@ -480,7 +480,18 @@ namespace ColorSort.UI
                 var toContainer = _session.Board.Containers[result.ToIndex];
                 if (IsFullyStacked(toContainer))
                 {
+                    // 라운드 클리어 색 판정(위 주석)은 "지금 열린 칸 기준으로 다 찼는가"
+                    // (Container.IsResolved와 정확히 같은 기준)가 맞다 — 병 추가로 생긴
+                    // 병이 1칸만 열린 채로 그 1칸을 채워 라운드가 클리어되는 경우에도
+                    // 이 색이 곧 "마지막으로 완성시킨 물 색"이기 때문. 그래서 여기는
+                    // 그대로 IsFullyStacked만 본다.
                     if (toContainer.TopColor.HasValue) _lastCompletedColor = WaterPalette.Get(toContainer.TopColor.Value);
+                }
+                // 축하 이펙트는 더 엄격한 기준(IsBottleVisuallyComplete)으로 따로 판단
+                // 한다 — 병 추가로 아직 일부 칸만 열린 병은 그 칸만 다 찼어도 이펙트를
+                // 안 틀어야 한다(사용자 제보, 2026-09-15 — 자세한 이유는 그 메서드 주석 참고).
+                if (IsBottleVisuallyComplete(toContainer))
+                {
                     StartCoroutine(PlayBottleCompleteBurstAfterPour(result.ToIndex));
                 }
             }
@@ -497,9 +508,23 @@ namespace ColorSort.UI
         }
 
         /// <summary>한 색으로 가득 찬(= 더 손댈 필요 없는, 비어있지 않은) 병인지.
-        /// Container.IsResolved는 빈 병도 포함하므로 여기선 "실제로 다 채워 완성"만 본다.</summary>
+        /// Container.IsResolved는 빈 병도 포함하므로 여기선 "실제로 다 채워 완성"만 본다.
+        /// 여기서 "가득 참"은 Container.IsFull(=지금 열린 칸 기준)이라, 병 추가로
+        /// 일부 칸만 열린 병도 그 칸까지만 채우면 true가 된다 — 라운드 클리어
+        /// 판정(Container.IsResolved)과 정확히 같은 기준을 맞추기 위해 의도적임.
+        /// 화면에 "병을 완성했다"고 보여줘도 되는지는 <see cref="IsBottleVisuallyComplete"/>를 따로 쓴다.</summary>
         private static bool IsFullyStacked(Container container) =>
             container.IsFull && container.Count > 0 && container.TopRunLength() == container.Count;
+
+        /// <summary>"완성 축하 이펙트"를 터뜨려도 되는 병인지 — IsFullyStacked(지금
+        /// 열린 칸 기준)만으로는 부족하다. 병 추가(광고 보상)로 생긴 병은
+        /// UnlockedCapacity가 Capacity보다 작은 채로 시작해 버튼을 누를 때마다
+        /// 1칸씩 늘어나는데(Container 참고), 지금 열린 칸만 다 찼다고 이펙트를
+        /// 틀면 아직 안 열린 칸이 남아있는데도 "병을 다 채웠다"고 보여주게
+        /// 된다(사용자 제보, 2026-09-15). 최종 용량까지 전부 열려서
+        /// (UnlockedCapacity == Capacity) 진짜로 다 찼을 때만 이펙트를 튼다.</summary>
+        private static bool IsBottleVisuallyComplete(Container container) =>
+            IsFullyStacked(container) && container.UnlockedCapacity == container.Capacity;
 
         /// <summary>방금 완성된 병에서 작은 축하 이펙트를 터뜨린다 — 붓기 연출로 물이
         /// 실제로 다 차오르는 시점(들어올리기 + 흐르기 구간이 끝나는 때)에 맞춰
@@ -511,8 +536,10 @@ namespace ColorSort.UI
             if (containerIndex < 0 || containerIndex >= _bottleViews.Count) yield break;
             if (containerIndex >= _session.Board.Containers.Count) yield break;
             var container = _session.Board.Containers[containerIndex];
-            // 기다리는 사이 Undo/Reset 등으로 완성이 풀렸으면 조용히 취소.
-            if (!IsFullyStacked(container)) yield break;
+            // 기다리는 사이 Undo/Reset 등으로 완성이 풀렸으면 조용히 취소(병 추가로
+            // 그 사이 새 칸이 열려버린 경우도 IsBottleVisuallyComplete가 false를 반환해
+            // 같이 걸러진다).
+            if (!IsBottleVisuallyComplete(container)) yield break;
 
             // 시작 위치: 병 Root의 윗변 중앙 + Inspector 오프셋(디자인 픽셀 → 캔버스 배율 반영).
             var root = _bottleViews[containerIndex].Root;

@@ -1847,6 +1847,25 @@ Handle이 커질수록 이 여분 폭도 같이 커지는 구조라 Handle을 �
 Fill 폭이 순수 앵커 비율로만 결정되게 했다 — value=1일 때 Fill 오른쪽 끝이
 Handle 이동 한계와 정확히 일치한다.
 
+## 병 추가로 일부만 열린 병에서 완성 이펙트가 조기 발동하던 문제 수정 (2026-09-15)
+
+병 추가(광고 보상)로 생긴 병은 `Container.UnlockedCapacity`가 `Capacity`보다
+작게 시작해 버튼 누를 때마다 1칸씩 늘어난다(`Container.cs` 참고). 그런데
+`GameView.IsFullyStacked`가 "가득 참"을 판단할 때 쓰는 `Container.IsFull`은
+`Count == UnlockedCapacity`(지금 열린 칸 기준)라 — 딱 1칸만 열린 병에 물을
+1개 부으면 그것만으로도 `IsFullyStacked`가 true가 되어, 아직 안 열린 칸이
+남았는데도 "병을 완성했다"는 축하 이펙트(`BottleCompleteBurst`)가 떠 버렸다
+(사용자 제보).
+
+`IsFullyStacked` 자체는 그대로 뒀다 — 라운드 클리어 색 판정(`_lastCompletedColor`)이
+`Container.IsResolved`(마찬가지로 `UnlockedCapacity` 기준)와 정확히 같은
+기준이어야 그 인과관계 보장이 성립하기 때문(2026-09-11 문서 참고). 대신
+축하 이펙트 재생 여부만 새 헬퍼 `IsBottleVisuallyComplete`
+(`IsFullyStacked && UnlockedCapacity == Capacity`)로 따로 판단하게 했다 —
+`PerformMove`의 이펙트 트리거와 `PlayBottleCompleteBurstAfterPour`의 지연
+재확인 둘 다 이걸로 바꿨다. 결과: 병 추가로 일부만 열린 병은 최종 용량까지
+전부 열려서 진짜로 다 찼을 때만 이펙트가 뜬다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접
