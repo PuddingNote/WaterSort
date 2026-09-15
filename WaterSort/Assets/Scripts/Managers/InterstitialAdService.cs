@@ -34,21 +34,41 @@ namespace ColorSort.Managers
         /// 이미 로드됐거나 로드 중이면 조용히 무시한다.</summary>
         public static void Preload(string adUnitId) => EnsureInitialized(() => LoadInternal(adUnitId));
 
-        /// <summary>광고를 보여주고, 닫히면 완료되는 Task를 돌려준다. 준비가 안 됐으면
-        /// 즉시 완료(대기 없음)하고 다음을 위해 로드만 다시 시도한다 — 광고 때문에
-        /// 라운드 전환이 막히면 안 되므로 실패는 전부 "그냥 넘어감"으로 처리한다.</summary>
-        public static Task ShowAsync(string adUnitId)
+        /// <summary>Preload가 걸려 있는데도 아직 로드가 안 끝났을 때 ShowAsync가
+        /// 포기하기 전에 기다려 주는 최대 시간. 4라운드마다 자동으로 뜨는 전면
+        /// 광고는(GameDesign 확정) 유저가 딱히 "지금 봐야지" 하고 기다리는 게
+        /// 아니라서 무한정 기다리게 하면 안 되지만, 0초 대기(이전 동작)는 실제
+        /// 비공개 테스트에서 문제가 됐다(사용자 제보, 2026-09-15) — MobileAds.
+        /// Initialize 콜드스타트 비용 + 실제 광고 요청 왕복시간을 합치면, 특히
+        /// 앱을 막 켠 뒤 앞쪽 쉬운 라운드 4개를 빠르게 깨버리는 경우 4라운드째
+        /// 클리어 시점에 아직 로드가 안 끝나 있어서 그 회차의 광고가 통째로
+        /// 스킵되곤 했다. 이 구간은 이미 "STAGE CLEAR" 화면이 불투명하게 덮고
+        /// 있는 유지 구간이라(StageClearOverlay), 몇 초 더 기다려도 화면이
+        /// 비어 보이거나 하지는 않는다.</summary>
+        private static readonly TimeSpan MaxWaitForLoad = TimeSpan.FromSeconds(4);
+
+        /// <summary>광고를 보여주고, 닫히면 완료되는 Task를 돌려준다. 아직 로드 중이면
+        /// 위 MaxWaitForLoad만큼만 기다려 봤다가(폴링), 그래도 준비가 안 됐으면
+        /// 포기하고 다음을 위해 로드만 다시 시도한다 — 광고 때문에 라운드 전환이
+        /// 영영 막히면 안 되므로 실패는 전부 "그냥 넘어감"으로 처리한다.</summary>
+        public static async Task ShowAsync(string adUnitId)
         {
-            var tcs = new TaskCompletionSource<bool>();
+            if (!IsReady(adUnitId))
+            {
+                var deadline = DateTime.UtcNow + MaxWaitForLoad;
+                while (!IsReady(adUnitId) && DateTime.UtcNow < deadline)
+                    await Task.Delay(200);
+            }
 
             if (!_loadedAds.TryGetValue(adUnitId, out var ad) || ad == null)
             {
+                Debug.Log($"[InterstitialAdService] {MaxWaitForLoad.TotalSeconds}초 기다려도 준비 안 됨 — 이번 회차는 건너뜀({adUnitId})");
                 Preload(adUnitId);
-                tcs.SetResult(false);
-                return tcs.Task;
+                return;
             }
 
             _loadedAds.Remove(adUnitId); // 한 번 쓰면 소모됨.
+            var tcs = new TaskCompletionSource<bool>();
 
             void Finish(bool shown)
             {
@@ -64,7 +84,7 @@ namespace ColorSort.Managers
             };
 
             ad.Show();
-            return tcs.Task;
+            await tcs.Task;
         }
 
         private static void EnsureInitialized(Action onReady)
