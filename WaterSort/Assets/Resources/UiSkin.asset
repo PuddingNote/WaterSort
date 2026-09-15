@@ -30,10 +30,10 @@ MonoBehaviour:
   GlassHighlightMaxAlpha: 0.18
   BottleCompleteBurstOffset: {x: 0, y: 0}
   LoadingSpinner: {fileID: 1349765751, guid: cb1693d2934224f4bb0220c4e97a805a, type: 3}
-  MainBgm: {fileID: 0}
-  ButtonTouchSfx: {fileID: 0}
-  RefreshSfx: {fileID: 0}
-  PourSound: {fileID: 0}
-  BottleCompleteSfx: {fileID: 0}
-  StageClearSfx: {fileID: 0}
+  MainBgm: {fileID: 8300000, guid: 42823c7c1a8268940a99e79a4cbf4e49, type: 3}
+  ButtonTouchSfx: {fileID: 8300000, guid: ad00175be09c5da4395ca05536f234ec, type: 3}
+  RefreshSfx: {fileID: 8300000, guid: ad00175be09c5da4395ca05536f234ec, type: 3}
+  PourSound: {fileID: 8300000, guid: 5984603491e7a3241910aad41ff1000b, type: 3}
+  BottleCompleteSfx: {fileID: 8300000, guid: f9914d605430e1c4cbbb6ac5bc71a1ed, type: 3}
+  StageClearSfx: {fileID: 8300000, guid: 692da3e4476d964498bd3af9d3932bd5, type: 3}
   ShowTestRoundField: 1
