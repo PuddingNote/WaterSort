@@ -24,7 +24,10 @@ namespace ColorSort.Solver
     /// </summary>
     public static class RoundDifficultyCurve
     {
-        public const int MaxDifficultyRoundId = 200;
+        // 200 -> 150: 1~200라운드는 체감상 텀이 너무 길다는 피드백(사용자 확정,
+        // 2026-09-15) — 곡선 모양(선형 증가)은 그대로, 그냥 같은 구간을 150라운드
+        // 안에 다 오르도록 압축해서 조금씩 더 빨리 어려워지게 했다.
+        public const int MaxDifficultyRoundId = 150;
 
         /// <summary>테마마다 다른 파라미터 한도.</summary>
         public sealed class ThemeLimits
