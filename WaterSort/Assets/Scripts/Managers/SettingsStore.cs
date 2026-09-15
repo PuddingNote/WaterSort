@@ -24,10 +24,11 @@ namespace ColorSort.Managers
             set { PlayerPrefs.SetInt(BgmEnabledKey, value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
-        /// <summary>기본값 0.5 — 처음엔 50%에서 시작(사용자 확정, 2026-09-10).</summary>
+        /// <summary>기본값 0.4 — 처음 설치한 유저 기준 시작값(사용자 확정, 2026-09-10에
+        /// 0.5로 뒀다가 2026-09-15에 0.4로 재조정).</summary>
         public static float BgmVolume
         {
-            get => Mathf.Clamp01(PlayerPrefs.GetFloat(BgmVolumeKey, 0.5f));
+            get => Mathf.Clamp01(PlayerPrefs.GetFloat(BgmVolumeKey, 0.4f));
             set { PlayerPrefs.SetFloat(BgmVolumeKey, Mathf.Clamp01(value)); PlayerPrefs.Save(); }
         }
 
@@ -37,9 +38,10 @@ namespace ColorSort.Managers
             set { PlayerPrefs.SetInt(SfxEnabledKey, value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        /// <summary>기본값 0.4 — BgmVolume과 같은 이유(2026-09-15).</summary>
         public static float SfxVolume
         {
-            get => Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, 0.5f));
+            get => Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, 0.4f));
             set { PlayerPrefs.SetFloat(SfxVolumeKey, Mathf.Clamp01(value)); PlayerPrefs.Save(); }
         }
 

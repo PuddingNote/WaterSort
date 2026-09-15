@@ -239,7 +239,7 @@ namespace ColorSort.UI
         public const float SettingsToggleWidth = 150f;
         public const float SettingsTitleFontSize = 68f; // 공용 DialogTitleFontSize(56)보다 크게(사용자 확정).
         public const float SliderTrackThickness = 12f;
-        public const float SliderHandleSize = 60f; // 40 -> 60: 손으로 잡기 쉽게 키움(사용자 확정, 2026-09-10).
+        public const float SliderHandleSize = 70f; // 40 -> 60 -> 70: 손으로 잡기 쉽게 키움(사용자 확정, 2026-09-10 / 2026-09-15).
 
         // 로딩 스피너(힌트 계산 중 등) 규격.
         public const float LoadingSpinnerSize = 160f;

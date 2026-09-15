@@ -1794,6 +1794,23 @@ v11.5.0이 임포트돼 있고(`Assets/GoogleMobileAds/`) Android 스크립팅 �
   상태, EEA 대상 설정)가 실제로 게시(Published)돼 있어야 `LoadAndShowConsentFormIfRequired`가
   폼을 가져올 수 있다 — 초안(Draft) 상태로만 있으면 안 뜬다.
 
+## 물병 탭 터치음 제거 (2026-09-15)
+
+사운드 클립 제작이 끝나 `UiSkin.asset`에 실제로 연결해보니, 병을 연달아
+여러 번 탭하는 흔한 플레이 패턴에서 `ButtonTouchSfx`가 매번 울려 오히려
+거슬린다는 피드백. `GameView.OnBottleTapped`에서 재생 호출 한 줄만 제거 —
+버튼(`UiFactory.CreateButton`)의 터치음은 그대로 유지한다. `UiSkin`의
+`ButtonTouchSfx` 툴팁도 "물병 탭에도 울린다" 문구를 지워 실제 동작과
+맞춰 뒀다.
+
+## 설정 창 슬라이더 핸들 크기 70으로, 기본 볼륨 0.4로 재조정 (2026-09-15)
+
+`UiTheme.SliderHandleSize` 60 → 70(사용자 확정 — 손으로 잡기 쉽게, 2026-09-10
+때와 같은 방향의 추가 조정). `SettingsStore.BgmVolume`/`SfxVolume`의
+PlayerPrefs 기본값도 0.5 → 0.4로 낮췄다 — PlayerPrefs 기본값이라 **이미 값을
+저장해 본 기존 유저에게는 영향 없고, 아직 설정을 한 번도 안 건드린(=키 자체가
+없는) 최초 설치 유저에게만 새 기본값이 적용**된다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접

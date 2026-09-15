@@ -87,8 +87,8 @@ namespace ColorSort.UI
         public AudioClip MainBgm;
 
         [Header("SFX")]
-        [Tooltip("버튼·물병 터치음 — 새로고침(초기화, RESET) 버튼만 빼고 나머지 모든 버튼과 " +
-                 "물병 탭에 공용으로 울린다.")]
+        [Tooltip("버튼 터치음 — 새로고침(초기화, RESET) 버튼만 빼고 나머지 모든 버튼에 울린다. " +
+                 "물병 탭에는 안 울린다(2026-09-15, 너무 자주 두드리면 거슬린다는 피드백으로 제외).")]
         public AudioClip ButtonTouchSfx;
 
         [Tooltip("새로고침(초기화, RESET) 버튼 전용 — '새로 고쳐지는' 느낌의 소리.")]

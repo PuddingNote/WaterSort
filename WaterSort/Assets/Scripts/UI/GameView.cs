@@ -413,7 +413,9 @@ namespace ColorSort.UI
             // 연달아 쏟아붓는 걸 그대로 허용한다(둘 다 사용자 확정).
             if (_pourAnimator.IsBusy(index)) return;
 
-            SoundService.Instance?.Play(SoundService.Sfx.ButtonTouch); // 물병 터치음(버튼과 공용).
+            // 물병 탭엔 더 이상 터치음을 안 울린다(사용자 확정, 2026-09-15) — 병을
+            // 연달아 많이 두드리는 플레이 패턴에서 소리가 오히려 거슬린다는 피드백.
+            // 버튼(UiFactory.CreateButton) 쪽 ButtonTouchSfx는 그대로 유지.
 
             if (_selectedIndex == null)
             {
