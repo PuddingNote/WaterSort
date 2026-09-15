@@ -1889,6 +1889,62 @@ false) **0초 대기하고 바로 포기**하던 구조였다 — `MobileAds.Ini
 줄에 "포기"(기다려도 준비 안 됨) 로그가 뜨는지, 아니면 애초에 로드 자체가
 실패("로드 실패")하는지를 보면 원인을 구분할 수 있다.
 
+## 안 보이는 물(Hidden Water) 라운드 추가 (2026-09-15)
+
+초반 1~20라운드가 거의 비슷한 난이도로 단조롭다는 피드백 — 그 자체를 손보기
+전에 "안 보이는 물" 변주를 중간중간 섞어서 임팩트를 주자는 아이디어(사용자
+제안, 첨부 스크린샷 참고: 병마다 맨 위 물 색만 보이고 나머지는 "?"로 가려진
+상태). 진행 전 두 가지를 확인받았다:
+
+1. **배치 규칙**: 매 N라운드마다 고정 주기(권장안 채택) — `UiSkin.
+   HiddenWaterRoundInterval`(기본 5)의 배수인 roundId마다 적용
+   (`GameView.Initialize`가 `roundId % interval == 0`으로 판정, interval이
+   0 이하면 기능 자체 꺼짐).
+2. **공개 유지 여부**: 한 번 드러난(맨 위로 노출된) 색은 그 라운드 동안 계속
+   보이되, **Undo나 새로고침(RESET)을 쓰면 다시 원래대로(그 시점 보드 기준
+   맨 위 칸만 보이게) 돌아간다.**
+
+라운드 생성 자체(RoundBuilder/솔버)는 전혀 안 건드렸다 — 보드는 평소와
+완전히 똑같이 100% 확정적으로 생성되고 안 보이는 물은 순수하게 **표시
+레이어**다. 판정 로직(MoveRules, ClearChecker, 힌트 솔버)도 항상 실제
+전체 내용을 그대로 쓴다 — "안 보임"은 사람 눈에만 해당된다.
+
+- **`GameView._hiddenBase`**(신규, `int[]`): 컨테이너별로 "바닥부터 몇 칸이
+  아직 안 밝혀졌는지". `_hiddenWaterMode`가 꺼져 있으면 항상 전부 0(=평소처럼
+  다 보임)이라 일반 라운드는 코드 경로만 타고 지나갈 뿐 아무 영향이 없다.
+  - `ResetHiddenBase()`: 이 시점 Board 기준 "병마다 맨 위 칸(TopRunLength)만
+    공개"로 완전히 새로 계산 — `RefreshAllBottles()`(라운드 최초 배치/Undo/
+    Reset이 전부 이 메서드 하나로 들어옴, 기존 구조 그대로 재사용) 맨 앞에서
+    항상 호출한다. Undo/Reset 때도 이 메서드가 다시 불리므로 "원래대로
+    돌아간다" 요구사항이 별도 처리 없이 자연히 성립한다.
+  - `UpdateHiddenBaseAfterMove(index)`: 정상적인 이동(수동 탭이든 힌트든
+    `PerformMove`를 공유하므로 둘 다 자동 적용) 성공 직후, 기존 값과 "이동
+    반영 후 맨 위 칸까지의 경계" 중 **작은 쪽**(`Math.Min`)을 취한다 — 값이
+    한 방향(감소)으로만 움직이므로 한 번 드러난 칸이 다른 색에 덮였다가
+    다시 맨 위로 와도 또 가려지지 않고, 출발 병 바닥의 몰랐던 색이 새로
+    맨 위가 됐을 때만 그만큼 더 드러난다.
+- **`BottleView.Refresh(container, hiddenUnitCount)`**: 확장된 시그니처
+  (기본값 0 — 다른 모든 호출부는 그대로 컴파일됨). 바닥부터 hiddenUnitCount
+  칸은 `AppendHiddenSegment()`(정확히 1칸 높이, 어두운 배경 + "?" — 새 색을
+  만들지 않고 `UiTheme.HiddenWaterFillColor`=BackgroundBottom, `HiddenWater
+  MarkColor`=TextSecondary 재사용), 그 위는 기존처럼 색상별 연속 구간으로
+  그린다. 가려진 칸은 정적이라(맨 위로 드러나는 순간 이 세그먼트 자체가
+  통째로 사라지고 일반 색 세그먼트로 바뀜) `ApplySegmentUnitCount`(매번
+  WaterPalette로 다시 칠함)를 거치지 않고 색을 한 번만 칠한다.
+- **`PourAnimator.Play`**: `sourceHiddenCount`/`destHiddenCount`(기본 0) 두
+  파라미터 추가 — 붓기 끝난 뒤 최종 스냅(`source.Refresh`/`dest.Refresh`)에
+  그대로 전달한다. GameView가 `TryMove` 직후(애니메이션 시작 전) 이미 최신
+  Board 기준으로 `_hiddenBase`를 갱신해 두므로, 애니메이션이 끝나는 시점엔
+  항상 올바른 값이 준비돼 있다.
+- **UiSkin/UiTheme**: `HiddenWaterRoundInterval`(int, Inspector 조절 가능,
+  기본 5) 하나만 새로 노출. 색은 기존 색 재사용(새 색 안 만듦, 프로젝트
+  관례 그대로).
+- **추가(2026-09-15)**: "?" 글자는 병이 똑바로 서 있을 때만 보이고, 붓느라
+  기울면 숨긴다(사용자 확정) — 가려진 칸의 어두운 배경은 그대로 남고 글자만
+  사라진다. `Segment.HiddenMark`(신규 필드, 가려진 칸에만 값이 있고 일반
+  색 세그먼트는 null)를 `BottleView.SetTilt`가 매 프레임 확인해서
+  `degrees == 0`이면 보이고 아니면 숨긴다.
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접

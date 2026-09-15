@@ -418,5 +418,14 @@ namespace ColorSort.UI
         /// TitleScreen이 이 값으로 그 입력창 자체를 만들지 말지 결정한다(스크린샷 등을
         /// 위해 에디터 안에서도 잠깐 감출 수 있게, 2026-09-11 사용자 확정).</summary>
         public static bool ShowTestRoundField => Skin == null || Skin.ShowTestRoundField;
+
+        /// <summary>안 보이는 물(Hidden Water) 라운드 주기 — 이 수의 배수인 roundId마다
+        /// 적용된다(GameView.Initialize 참고). UiSkin이 없으면 기본 5. 0 이하면 기능 끔
+        /// (사용자 확정, 2026-09-15 — 초반 라운드 단조로움 완화용 변주).</summary>
+        public static int HiddenWaterRoundInterval => Skin != null ? Skin.HiddenWaterRoundInterval : 5;
+
+        // 가려진 칸(아직 안 밝혀진 물) 표시 색 — 새 색을 만들지 않고 기존 색을 재사용한다.
+        public static readonly Color HiddenWaterFillColor = BackgroundBottom; // 어두운 배경색 그대로.
+        public static readonly Color HiddenWaterMarkColor = TextSecondary;    // "?" 글자색.
     }
 }

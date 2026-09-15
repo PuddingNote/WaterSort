@@ -36,4 +36,5 @@ MonoBehaviour:
   PourSound: {fileID: 8300000, guid: 5984603491e7a3241910aad41ff1000b, type: 3}
   BottleCompleteSfx: {fileID: 8300000, guid: f9914d605430e1c4cbbb6ac5bc71a1ed, type: 3}
   StageClearSfx: {fileID: 8300000, guid: 692da3e4476d964498bd3af9d3932bd5, type: 3}
+  HiddenWaterRoundInterval: 5
   ShowTestRoundField: 1

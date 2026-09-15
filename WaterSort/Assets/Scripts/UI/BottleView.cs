@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ColorSort.Core;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -81,6 +82,10 @@ namespace ColorSort.UI
             public ColorId Color;
             public float UnitCount; // 애니메이션 중간값을 표현하려고 소수 허용.
             public Image Image;
+
+            /// <summary>안 보이는 물(Hidden Water) 라운드의 가려진 칸에만 있는 "?" 글자 —
+            /// 일반 색 세그먼트는 항상 null. SetTilt가 병이 기울면 이걸 숨긴다.</summary>
+            public TMP_Text HiddenMark;
         }
 
         /// <summary>붓기 애니메이션이 세그먼트 하나의 높이를 프레임마다 갱신할 때 쓰는 핸들.
@@ -408,6 +413,15 @@ namespace ColorSort.UI
                 _waterBands.localEulerAngles = new Vector3(0f, 0f, -degrees);
                 RelayoutSegments();
             }
+
+            // 안 보이는 물(Hidden Water) 라운드의 "?" 글자는 병이 똑바로 서 있을 때만
+            // 보인다(사용자 확정, 2026-09-15) — 붓느라 기울면 숨긴다. 가려진 칸의
+            // 어두운 배경 자체는 계속 남아있고 글자만 사라진다(RelayoutSegments가
+            // 이미 색 경계를 수평으로 유지해 주지만, 글자까지 그대로 두면 기울어진
+            // 유리 안에 "?"만 둥둥 떠 있는 것처럼 보여서 오히려 부자연스럽다는 판단).
+            bool upright = Mathf.Approximately(degrees, 0f);
+            foreach (var s in _segments)
+                if (s.HiddenMark != null) s.HiddenMark.gameObject.SetActive(upright);
         }
 
         /// <summary>물+마스크(_waterVisual)를 좌우로 살짝 밀어서 BottleMask와
@@ -458,14 +472,21 @@ namespace ColorSort.UI
 
         /// <summary>애니메이션 없이 컨테이너 내용을 즉시 반영 — 초기 배치, undo/reset,
         /// 그리고 붓기 애니메이션이 끝난 뒤 최종 스냅에 쓴다.</summary>
-        public void Refresh(Container container)
+        /// <param name="hiddenUnitCount">안 보이는 물(Hidden Water) 라운드에서, 바닥부터
+        /// 이 개수만큼의 칸을 색 대신 "?"로 가려서 그린다(GameView._hiddenBase 참고).
+        /// 기본 0 = 항상 전부 공개(일반 라운드와 동일하게 동작).</param>
+        public void Refresh(Container container, int hiddenUnitCount = 0)
         {
             foreach (var s in _segments)
                 if (s.Image != null) UnityEngine.Object.Destroy(s.Image.gameObject);
             _segments.Clear();
 
             var units = container.Units; // index 0 = 바닥
-            int i = 0;
+            int hidden = Mathf.Clamp(hiddenUnitCount, 0, units.Count);
+            for (int h = 0; h < hidden; h++)
+                AppendHiddenSegment();
+
+            int i = hidden;
             while (i < units.Count)
             {
                 var color = units[i];
@@ -573,6 +594,31 @@ namespace ColorSort.UI
             var segment = new Segment { Color = color, UnitCount = unitCount, Image = CreateSegmentImage() };
             _segments.Add(segment);
             ApplySegmentUnitCount(segment, unitCount);
+        }
+
+        /// <summary>안 보이는 물(Hidden Water) 라운드에서 아직 안 밝혀진 칸 하나(정확히
+        /// 1칸 높이)를 그린다 — 색 대신 어두운 배경 + "?" 글자. 색이 있는 세그먼트와
+        /// 달리 ApplySegmentUnitCount(WaterPalette로 매번 다시 칠함)를 거치지 않고
+        /// 색을 직접 한 번만 칠한다 — 이 세그먼트는 애니메이션(늘어나거나 줄어듦) 대상이
+        /// 아니라 항상 정적이라서다(가려진 칸이 실제로 움직이는 건 그 칸이 맨 위로
+        /// 드러나 Refresh가 다시 불릴 때뿐 — 그때는 이 세그먼트 자체가 통째로 없어지고
+        /// 일반 색 세그먼트로 바뀐다).</summary>
+        private void AppendHiddenSegment()
+        {
+            var image = CreateSegmentImage();
+            image.color = UiTheme.HiddenWaterFillColor;
+
+            var segment = new Segment { Color = default, UnitCount = 1f, Image = image };
+            _segments.Add(segment);
+
+            var mark = UiFactory.CreateText(image.transform, "?", UiTheme.FontSizeButton, UiTheme.HiddenWaterMarkColor);
+            mark.enableAutoSizing = true; // 병이 작거나 칸이 많아 1칸 높이가 좁아도 안 넘치게.
+            mark.fontSizeMin = 12f;
+            mark.fontSizeMax = UiTheme.FontSizeButton;
+            UiFactory.Stretch((RectTransform)mark.transform);
+            segment.HiddenMark = mark;
+
+            RelayoutSegments();
         }
 
         private void ApplySegmentUnitCount(Segment segment, float unitCount)

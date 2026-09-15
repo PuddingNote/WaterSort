@@ -34,6 +34,19 @@ namespace ColorSort.UI
         private Transform _canvasRoot;
         private int _roundId;
         private readonly List<BottleView> _bottleViews = new List<BottleView>();
+
+        /// <summary>안 보이는 물(Hidden Water) 라운드인지 — UiTheme.HiddenWaterRoundInterval의
+        /// 배수인 roundId마다(사용자 확정, 2026-09-15: "초반 라운드가 단조로워 보임"에
+        /// 대한 변주). true면 각 병이 맨 위 칸만 보이고 나머지는 "?"로 가려진 채 시작한다.</summary>
+        private bool _hiddenWaterMode;
+
+        /// <summary>컨테이너별로 "바닥에서부터 몇 칸이 아직 안 밝혀졌는지"(=BottleView.Refresh의
+        /// hiddenUnitCount로 그대로 넘어감). _hiddenWaterMode가 꺼져 있으면 항상 전부 0(=평소처럼
+        /// 다 보임)으로 유지된다. ResetHiddenBase가 라운드 시작/Undo/Reset마다 "이 시점 보드
+        /// 기준 맨 위 칸만 보임"으로 완전히 새로 계산하고(사용자 확정: Undo/Reset하면 공개된
+        /// 정보도 다시 가려짐), 정상적인 이동은 UpdateHiddenBaseAfterMove가 값을 줄이기만
+        /// 한다(한 번 드러난 칸은 그 라운드 안에서 다시 안 가려짐).</summary>
+        private int[] _hiddenBase = Array.Empty<int>();
         private RectTransform _bottleArea;
         private Button _undoButton;
         private Button _hintButton;
@@ -99,6 +112,7 @@ namespace ColorSort.UI
             _session = session;
             _callbacks = callbacks;
             _hintCount = HintStore.LoadCount(); // BuildBottomBar가 배지를 만들 때 바로 쓸 수 있게 미리 읽어 둠.
+            _hiddenWaterMode = UiTheme.HiddenWaterRoundInterval > 0 && roundId % UiTheme.HiddenWaterRoundInterval == 0;
 
             var background = UiFactory.CreatePanel(root, "Background", UiTheme.BackgroundTop);
             UiFactory.Stretch(background);
@@ -463,7 +477,14 @@ namespace ColorSort.UI
                 // 겹쳐 더 들뜬 것처럼 보이면 안 된다(SnapBottleLift가 진행 중이던
                 // 코루틴도 같이 멈춘다).
                 SnapBottleLift(from, 0f);
-                _pourAnimator.Play(result, _bottleViews[result.FromIndex], _bottleViews[result.ToIndex], onComplete: EvaluateBoardState);
+                // 안 보이는 물 라운드라면, 이 이동으로 새로 드러난 칸이 있는지 Board의
+                // 최신 상태(TryMove가 이미 반영함) 기준으로 갱신 — 붓기 애니메이션이
+                // 끝나고 PourAnimator가 최종 스냅할 때 이 값을 그대로 쓴다.
+                UpdateHiddenBaseAfterMove(result.FromIndex);
+                UpdateHiddenBaseAfterMove(result.ToIndex);
+                _pourAnimator.Play(result, _bottleViews[result.FromIndex], _bottleViews[result.ToIndex],
+                    sourceHiddenCount: _hiddenBase[result.FromIndex], destHiddenCount: _hiddenBase[result.ToIndex],
+                    onComplete: EvaluateBoardState);
 
                 // 이 이동으로 도착 병이 한 색으로 가득 찼으면(완성) 그 병에서 작은 축하
                 // 이펙트를 터뜨린다 — 물이 실제로 다 차오르는 시점(붓기 들어올리기+흐르기가
@@ -763,10 +784,16 @@ namespace ColorSort.UI
         /// 처럼 상태를 강제로 스냅해야 할 때만 쓴다.</summary>
         private void RefreshAllBottles()
         {
+            // 라운드 최초 배치든 Undo든 Reset이든 전부 여기로 들어온다 — 안 보이는 물
+            // 라운드에서는 매번 "이 시점 보드 기준 맨 위 칸만 보임"으로 완전히 새로
+            // 계산한다(사용자 확정, 2026-09-15: Undo/Reset하면 그 사이 드러났던 정보도
+            // 다시 가려지게). 일반 라운드는 ResetHiddenBase가 그냥 전부 0으로 채운다.
+            ResetHiddenBase();
+
             var containers = _session.Board.Containers;
             for (int i = 0; i < _bottleViews.Count; i++)
             {
-                _bottleViews[i].Refresh(containers[i]);
+                _bottleViews[i].Refresh(containers[i], _hiddenBase[i]);
                 // 병 추가로 열린 칸 수도 같이 맞춘다 — Undo/Reset은 Board를 통째로
                 // 옛 스냅샷으로 갈아 끼우므로(PuzzleSession이 그 시점에 맞게
                 // 보정은 해 주지만) 화면 쪽 오버레이는 따로 갱신해 줘야 한다.
@@ -775,6 +802,31 @@ namespace ColorSort.UI
             }
 
             RefreshHighlights();
+        }
+
+        /// <summary>_hiddenBase를 지금 Board 기준 "병마다 맨 위 칸만 공개"로 완전히 새로
+        /// 계산한다(RefreshAllBottles 전용 — 진행 중 이동은 대신 UpdateHiddenBaseAfterMove를
+        /// 쓴다). _hiddenWaterMode가 꺼져 있으면 그냥 전부 0(항상 다 보임)으로 채운다.</summary>
+        private void ResetHiddenBase()
+        {
+            var containers = _session.Board.Containers;
+            if (_hiddenBase.Length != containers.Count) _hiddenBase = new int[containers.Count];
+
+            for (int i = 0; i < containers.Count; i++)
+                _hiddenBase[i] = _hiddenWaterMode ? Mathf.Max(0, containers[i].Count - containers[i].TopRunLength()) : 0;
+        }
+
+        /// <summary>이동이 성공한 직후, 그 이동이 건드린 병 하나의 _hiddenBase를 갱신한다.
+        /// 절대값으로 다시 정하지 않고 기존 값과 "지금 맨 위 칸까지의 경계" 중 작은
+        /// 쪽을 취한다(Math.Min) — 그래야 한 번 드러난 칸이 다른 색에 덮였다가 다시
+        /// 맨 위로 와도 다시 가려지지 않고, 출발 병에서 물이 다 빠져나가 그 밑에
+        /// 있던(전에는 몰랐던) 색이 새로 맨 위가 됐을 때만 그만큼 더 드러난다.</summary>
+        private void UpdateHiddenBaseAfterMove(int containerIndex)
+        {
+            if (!_hiddenWaterMode) return;
+            var c = _session.Board.Containers[containerIndex];
+            int newBoundary = Mathf.Max(0, c.Count - c.TopRunLength());
+            _hiddenBase[containerIndex] = Mathf.Min(_hiddenBase[containerIndex], newBoundary);
         }
 
         /// <summary>선택된 병의 들어올리기 연출과 버튼 활성 상태만 다시 그린다 — 병

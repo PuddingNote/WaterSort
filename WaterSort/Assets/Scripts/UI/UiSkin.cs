@@ -104,6 +104,12 @@ namespace ColorSort.UI
         [Tooltip("스테이지(라운드) 클리어 연출이 뜰 때 나는 소리.")]
         public AudioClip StageClearSfx;
 
+        [Header("안 보이는 물 (Hidden Water) 라운드")]
+        [Tooltip("이 라운드 수마다 한 번씩, 병마다 맨 위 물만 보이고 나머지는 '?'로 가려지는 " +
+                 "라운드가 낀다(예: 5면 5, 10, 15... 라운드). 0 이하면 기능 자체를 끈다. " +
+                 "초반 라운드가 너무 단조롭다는 피드백에 대한 변주(2026-09-15).")]
+        public int HiddenWaterRoundInterval = 5;
+
         [Header("에디터 전용 디버그")]
         [Tooltip("타이틀 화면의 'Test round' 입력창(원하는 라운드로 바로 시작) 표시 여부. " +
                  "에디터에서만 어차피 안 보이지만(실제 빌드는 항상 숨김), 스크린샷 찍을 때처럼 " +

@@ -68,13 +68,18 @@ namespace ColorSort.UI
         /// 기존처럼 계속 가능해야 한다(사용자 확정).</summary>
         public bool IsBusy(int containerIndex) => _busySourceIndices.Contains(containerIndex);
 
+        /// <param name="sourceHiddenCount">안 보이는 물(Hidden Water) 라운드에서 출발 병의
+        /// 가려진 칸 수 — 붓기가 끝난 뒤 최종 스냅(Refresh)에 그대로 넘긴다. 일반 라운드는
+        /// 항상 0(기본값)이라 아무 영향 없다(GameView._hiddenBase 참고).</param>
+        /// <param name="destHiddenCount">같은 개념, 도착 병 쪽.</param>
         /// <param name="onComplete">이 이동의 붓기 연출이 끝난 뒤 호출된다. 단, 그
         /// 시점에 다른 이동의 연출이 아직 겹쳐서 진행 중이면 부르지 않고, 마지막
         /// 하나가 끝날 때 한 번만 부른다 — 클리어 판정(라운드 클리어 → 다음 라운드
         /// 전환)이 애니메이션 도중에, 화면이 아직 다 안 찼는데 성급하게 일어나면
         /// 안 되기 때문(사용자가 실제로 겪은 버그: 마지막 이동의 붓기가 채 끝나기도
         /// 전에 다음 라운드로 넘어감).</param>
-        public void Play(MoveResult move, BottleView source, BottleView dest, Action onComplete = null)
+        public void Play(MoveResult move, BottleView source, BottleView dest,
+            int sourceHiddenCount = 0, int destHiddenCount = 0, Action onComplete = null)
         {
             _busySourceIndices.Add(move.FromIndex);
             _activeDestCounts.TryGetValue(move.ToIndex, out int destCount);
@@ -86,7 +91,7 @@ namespace ColorSort.UI
 
             IEnumerator RunAndUntrack()
             {
-                yield return PlayRoutine(move, source, dest, entry);
+                yield return PlayRoutine(move, source, dest, entry, sourceHiddenCount);
                 _active.Remove(entry);
                 _busySourceIndices.Remove(move.FromIndex);
 
@@ -96,7 +101,7 @@ namespace ColorSort.UI
                 // 줄여야 한다(안 그러면 카운트가 영영 안 줄어들어서 그 도착 병은
                 // 앞으로 절대 Refresh가 안 되는 버그가 생김).
                 if (EndDestPour(move.ToIndex))
-                    dest.Refresh(_session.Board.Containers[move.ToIndex]);
+                    dest.Refresh(_session.Board.Containers[move.ToIndex], destHiddenCount);
 
                 if (_active.Count == 0) onComplete?.Invoke();
             }
@@ -155,7 +160,7 @@ namespace ColorSort.UI
             return false;
         }
 
-        private IEnumerator PlayRoutine(MoveResult move, BottleView source, BottleView dest, ActivePour entry)
+        private IEnumerator PlayRoutine(MoveResult move, BottleView source, BottleView dest, ActivePour entry, int sourceHiddenCount)
         {
             var shrink = source.BeginShrinkTop();
             if (shrink == null) yield break; // 방어적 — 규칙상 출발 병은 항상 비어있지 않음.
@@ -292,7 +297,7 @@ namespace ColorSort.UI
             // 있어서(사용자 확정으로 허용됨) 여기서 바로 하지 않고 RunAndUntrack이
             // (PlayRoutine이 여기 도달하지 못하고 일찍 끝나도 항상 실행되는 지점)
             // EndDestPour로 판단해서 처리한다 — 자세한 이유는 그쪽 주석 참고.
-            source.Refresh(_session.Board.Containers[move.FromIndex]);
+            source.Refresh(_session.Board.Containers[move.FromIndex], sourceHiddenCount);
         }
 
         private static GameObject CreateSpacer(Transform parent, int siblingIndex)
