@@ -61,6 +61,10 @@ namespace ColorSort.UI
             // 두 화면(다이얼로그/이 화면)이 각자 따로 Escape를 읽으면 같은 프레임에
             // 닫혔다가 바로 다시 열리는 경합이 생겨서, 여기 한 곳에서만 처리한다.
             if (Keyboard.current == null || !Keyboard.current.escapeKey.wasPressedThisFrame) return;
+            // 강제 업데이트 창이 떠 있으면 뒤로가기를 완전히 무시한다 — 안 그러면 이
+            // 화면 자신의 종료 확인 다이얼로그가 차단 창 뒤에서 열려버린다
+            // (UpdateRequiredView 클래스 주석 참고).
+            if (UpdateRequiredView.IsActive) return;
 
             if (_activeDialog != null)
             {

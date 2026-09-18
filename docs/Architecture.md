@@ -1948,6 +1948,40 @@ false) **0초 대기하고 바로 포기**하던 구조였다 — `MobileAds.Ini
   색 세그먼트는 null)를 `BottleView.SetTilt`가 매 프레임 확인해서
   `degrees == 0`이면 보이고 아니면 숨긴다.
 
+## 강제 업데이트 시스템(Force Update Gate) 추가 (2026-09-18)
+
+Desktop의 `캐주얼_게임_재사용_시스템_모음.md` 1장 구조를 그대로 옮겼다 — 자세한
+구조·원격 파일 형식·minVersion 판단 기준표·운영 순서는 `docs/ForceUpdate.md`에
+따로 정리했고(다른 시스템 문서와 마찬가지로 운영 문서는 Architecture.md가 아니라
+그 전용 문서에 둔다), 여기서는 구현 포인트만 남긴다.
+
+- **`Core/AppVersion.cs`**(신규): `IsOlderThan(current, minVersion)` — 버전
+  문자열을 `.`로 나눠 자리별 정수로 비교한다(문자열 그대로 비교하면
+  "0.9.9" > "0.10.0"으로 잘못 판정됨).
+- **`Managers/VersionCheckService.cs`**(신규): `UnityWebRequest`로
+  `https://puddingnote.github.io/watersort/version.json`을 조회 — 오프라인·
+  타임아웃(5초)·404·JSON 파싱 실패 등 확인에 실패하는 모든 경우 예외 없이
+  fail-open(그냥 통과)으로 처리한다. `storeUrl`/`message`가 JSON에 없으면 각각
+  `Application.identifier` 기반 스토어 URL과 기본 영문 메시지로 대체한다.
+- **`UI/UpdateRequiredView.cs`**(신규): `ConfirmDialog`와 같은 규격(딤 배경 +
+  다이얼로그 패널, "다른 다이얼로그 창과 동일하게" 사용자 요청)이지만 버튼을
+  눌러도 절대 안 닫힌다 — [QUIT]는 종료, [UPDATE]는 스토어로 보내되 창은 그대로
+  열어 둔다(업데이트 안 하고 돌아오면 여전히 막혀 있어야 함). 정적
+  `IsActive` 플래그를 두고 `TitleScreen.Update`/`GameView.Update` 맨 앞에서
+  확인해 true면 그 화면 자신의 뒤로가기(Escape) 처리를 완전히 건너뛴다 —
+  안 그러면 뒤로가기로 그 화면 자신의 다이얼로그(종료 확인 등)가 이 차단 창
+  뒤에서 열려버린다(재사용 문서가 경고하는 "그 틈으로 들어갈 수 있다" 사고).
+  딤 배경이 화면 전체 레이캐스트를 막아서 터치는 별도 처리 없이 이미
+  차단됨 — 키보드 Escape만 폴링 기반이라 별도 플래그가 필요했다.
+- **`GameBootstrap.Boot()`**: 캔버스를 만든 직후 `RunVersionCheck` 로컬
+  async 함수로 확인을 시작하고 결과를 기다리지 않는다(ConsentService.
+  GatherConsent와 같은 패턴) — 응답이 오면 그 시점에 떠 있는 화면 위에
+  자연스럽게 덮인다.
+- **주의**: 2026-09-18 기준 `PuddingNote.github.io/watersort/version.json`이
+  아직 실제로 존재하지 않는다 — fail-open이라 지금은 아무 영향 없이 항상
+  통과되는 상태(=기능이 코드상 완성됐지만 아직 "꺼져 있는" 것과 같음). 실제로
+  켜려면 허브 저장소에 그 파일을 만들어야 한다(ForceUpdate.md 참고).
+
 ## 아직 정하지 않은 것
 
 - 난이도 커브가 사람이 실제로 체감하기에 적절한지는 여전히 사용자가 직접
@@ -1957,6 +1991,8 @@ false) **0초 대기하고 바로 포기**하던 구조였다 — `MobileAds.Ini
   포함)은 작성됐지만, 아직 게임 저장소 안에 있다 — `개인정보처리방침_재사용_가이드.md`가
   권하는 `{계정}.github.io` 허브 저장소로의 이전(및 그에 맞춘 Play 콘솔 링크
   등록)은 별도로 진행해야 한다. 광고 SDK는 AdMob으로 확정됐다(아래 항목 참고).
+  **강제 업데이트의 `version.json`도 같은 허브 저장소·같은 폴더에 두기로
+  했으므로(위 항목 참고) 이 이전 작업을 할 때 두 파일을 함께 옮기면 된다.**
 - 힌트 광고(`HintRewarded`)는 지금 병 추가와 같은 AdMob 광고 단위를 쓴다 —
   분리하려면 콘솔에서 힌트용 보상형 단위를 만들고 `AdUnitIds.HintRewardedProd`만
   그 값으로 바꾸면 된다(코드 흐름은 그대로).

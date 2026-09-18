@@ -242,6 +242,14 @@ namespace ColorSort.UI
         public const float SliderTrackThickness = 12f;
         public const float SliderHandleSize = 70f; // 40 -> 60 -> 70: 손으로 잡기 쉽게 키움(사용자 확정, 2026-09-10 / 2026-09-15).
 
+        // 강제 업데이트 창 규격(2026-09-18) — 제목 한 줄짜리 ConfirmDialog(DialogHeight
+        // 420)와 달리 원격에서 받은 여러 줄 안내 메시지가 들어갈 자리가 더 필요해서
+        // 세로로 키웠다. 폭/버튼 규격/제목 크기는 ConfirmDialog와 그대로 통일
+        // (사용자 요청: "다른 다이얼로그 창과 동일하게").
+        public const float UpdateRequiredDialogHeight = 640f;
+        // 본문(원격 메시지) 폰트 크기 — 공용 FontSizeBody(32)보다 크게(사용자 확정).
+        public const float UpdateRequiredBodyFontSize = 44f;
+
         // 로딩 스피너(힌트 계산 중 등) 규격.
         public const float LoadingSpinnerSize = 160f;
         public const float LoadingSpinnerDegreesPerSecond = 260f;

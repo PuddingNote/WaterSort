@@ -54,6 +54,23 @@ namespace ColorSort.UI
             var canvas = UiFactory.CreateRootCanvas();
             canvas.transform.SetParent(root.transform, false);
 
+            // 강제 업데이트 확인(2026-09-18, 재사용_시스템_모음.md 1장) — GDPR 동의와
+            // 마찬가지로 이 결과를 기다리지 않고 타이틀 화면을 바로 띄운다. 응답이
+            // 오면(보통 1초 이내) 그 시점에 떠 있는 화면(타이틀이든 게임 중이든) 위에
+            // UpdateRequiredView가 딤 배경으로 덮으며 나타난다. fail-open이라 확인이
+            // 실패해도(오프라인 등) 아무 일도 안 일어난다.
+            RunVersionCheck(canvas.transform);
+
+            async void RunVersionCheck(Transform canvasRoot)
+            {
+                try
+                {
+                    var result = await VersionCheckService.CheckAsync(Application.version);
+                    if (result.UpdateRequired) UpdateRequiredView.Show(canvasRoot, result.Message, result.StoreUrl);
+                }
+                catch (System.Exception e) { Debug.LogException(e); }
+            }
+
             // 앱 전체에서 하나뿐인 사운드 재생기 — DontDestroyOnLoad 루트에 붙여
             // 타이틀↔게임↔스테이지클리어를 오가도 BGM이 안 끊긴다(SoundService 참고).
             SoundService.Create(root.transform);
